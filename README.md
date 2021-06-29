@@ -22,6 +22,22 @@ For more options see
 
 `run vband -h`
 
+## Requirements
+
+The scripts require the following python packages:
+- `numpy`, `scipy`, `matplotlib`
+- `uncertainties`
+- `allantools`
+
+`vband.py` requires also:
+- `pygsl`
+
+To instal gsl (under Linux Mint):
+
+`apt-get install libgsl-dev`
+
+`pip3 instal pygsl`
+
 ## License
 
 [MIT](https://opensource.org/licenses/MIT)
