@@ -1,0 +1,721 @@
+
+"""
+Sideband fit script for IT-Yb1
+
+*changelog*
+20210526 - added options for linear or parabolic temperature fits
+20210504 - added two if __name__ == '__main__' so that the script can be imported
+
+
+"""
+
+
+from numpy import *
+from scipy.constants import *
+
+from scipy.special import mathieu_b, mathieu_sem, mathieu_cem, eval_genlaguerre, factorial
+import scipy.optimize as opt
+
+import time
+
+# not bugged mathieu functions
+# to instal gsl
+# apt-get install libgsl-dev
+# pip3 instal pygsl
+# note that special functions are under testing
+import pygsl.testing.sf as sf
+
+from matplotlib.pyplot import *
+
+
+import os
+import os.path
+import argparse
+import sys
+from datetime import datetime
+
+from uncertainties import ufloat, ufloat_fromstr, correlated_values
+from uncertainties import umath
+from uncertainties import unumpy
+
+
+
+
+
+__version__="1.1"
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser(description='Process sidebands data based on new model')
+	parser.add_argument('infile', type=argparse.FileType('r'), nargs='+', help='File or list of files to be processed')
+	parser.add_argument('--dir',  help='Directory for storing results', default='./Vbands')
+	parser.add_argument('--log',  help='Filename where to save a sumamry of the results', default='last')
+	parser.add_argument('-tag', nargs='+', help='Tag or list of tags for each file' ,default=['-'])
+
+	parser.add_argument('-Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
+	parser.add_argument('-Tzscale',  type=float, help='Scale for the initial guess of Tz', default=0.2)
+	parser.add_argument('-Trscale',  type=float, help='Scale for the initial guess of Tr', default=0.2)
+	parser.add_argument('-Tz',  type=float, help='Fix the initial guess of Tz, then Tzscale is ignored', default=None)
+	parser.add_argument('-Tr',  type=float, help='Fix the initial guess of Tr, then Trscale is ignored', default=None)
+	parser.add_argument('-fac',  type=float, help='Quality of integration parameter', default=10)
+	parser.add_argument('-Sb', action='store_true', help='Fit separately blue/red sidebands height.')
+
+	parser.add_argument('-Tfit', action='store_true', help='Fit T vs U for processed files')
+	parser.add_argument('-Tquad', action='store_true', help='Fit T vs U with a quadratic function')
+	parser.add_argument('-Nfit', action='store_true', help='Show N vs U for processed files')
+
+
+
+	command = sys.argv
+	args = parser.parse_args()
+
+
+	if not os.path.exists(args.dir):
+		os.makedirs(args.dir)
+
+
+	ion()
+	close('all')
+
+
+m = 2.83846417e-25	# atomic mass
+fL = 394798e9		# lattice frequency
+lL = c/fL		# lattice wavelength
+Er = h**2/(2*m*lL**2)	# recoil energy
+vrec = h/(2*m*lL**2)	# recoil frequency
+w = 45e-6		# lattice waist # note final result does not depend on w
+
+# store boltzmann for later
+kB = k
+
+# problem scale
+k = 2*pi/lL
+kappa = sqrt(2)/w 
+
+# clock k
+wc = 518295836590863.
+lc = c/wc
+kc = 2*pi/lc
+
+
+
+## as reference: Frequencies (Blatt2009 eq. 4 and 5)
+#vz = 2*vrec*sqrt(D)
+#vr = vz*kappa/k
+
+
+def U(rho, D, nz):
+	"""Return the lattice potential surface as Beloy2020 Eq. D2.
+	
+	Inputs
+	------
+	rho : radial coordinates in units of kappa**-1
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number
+	
+	Returns
+	-------
+	U : lattice potential surface in Er
+	"""
+	Drho = D*exp(-rho**2)
+	return (sf.mathieu_b(nz+1,Drho/4) -Drho/2)
+
+def R(E, D, nz):
+	"""Inverse uf U (Beloy2020 pag. 4)
+	
+	Inputs
+	------
+	E : potential energy in Er
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number
+	
+	Returns
+	-------
+	r : radial coordinates in units of kappa**-1
+	"""
+	mineps = 0.
+	maxeps = 2.7  #max radius for nz = 0 and D=1500
+	try:
+
+		res = opt.root_scalar(lambda x, *args: U(x, *args) - E, args=(D, nz), bracket=[mineps,maxeps], method='brentq')
+	except ValueError:
+		return 0.
+	
+	return res.root
+
+R = vectorize(R)
+
+
+def DeltaU(rho, D, nz, dn=1):
+	"""Return the difference between lattice potential surfaces.
+	
+	Inputs
+	------
+	rho : radial coordinates in units of kappa**-1
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number of the starting level
+	dn : longitudinal quantum number jump (default: 1)
+	
+	Returns
+	-------
+	DeltaU : difference U(rho, nz+dn) - U(rho, nz)
+	"""
+
+	return U(rho, D, nz+dn) - U(rho, D, nz)
+
+
+# Harmonic Oscillator
+def Omega(rho, D, nz, dn=1):
+	"""Normalized Rabi frequency for the harmonic oscillator (Wineland1979 eq. 31)
+	
+	Inputs
+	------
+	rho : radial coordinates in units of kappa**-1
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number of the starting level
+	dn : longitudinal quantum number jump (default: 1)
+	
+	Returns
+	-------
+	Omega : Normalized Rabi frequency  (between 0 and 1)
+	"""
+
+	Drho = D*exp(-rho**2)
+	eta = kc/k/sqrt(2)/Drho**0.25 
+
+	
+	return exp(-eta**2/2)*sqrt(factorial(nz)/factorial(nz+dn))*eta**(dn)*eval_genlaguerre(nz,dn,eta**2)
+	
+	
+	
+	
+
+# Using Mathieu Functions
+def OmegaMat(rho, D, nz, dn=1):
+	"""Normalized Rabi frequency for Mathieu wavefunctions (Beloy2020 appendix)
+	
+	Inputs
+	------
+	rho : radial coordinates in units of kappa**-1
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number of the starting level
+	dn : longitudinal quantum number jump (default: 1)
+	
+	Returns
+	-------
+	Omega : Normalized Rabi frequency (between 0 and 1)
+	"""
+
+	Drho = D*exp(-rho**2)
+	lim = pi/(2*k)
+	if dn % 2:
+		res2 = integ.quad(lambda z: 2*k/pi * sf.mathieu_se(nz+1,  Drho/4, (k*z + pi/2)) * sin(kc*z) * sf.mathieu_se(nz+1+dn, Drho/4, (k*z + pi/2)), 0,lim) # pygsl -- slower but no bugs!
+	else:
+		res2 = integ.quad(lambda z: 2*k/pi * sf.mathieu_se(nz+1,  Drho/4, (k*z + pi/2)) * cos(kc*z) * sf.mathieu_se(nz+1+dn, Drho/4, (k*z + pi/2)), 0,lim) # pygsl -- slower but no bugs!
+	
+	# integral is even
+	return 2*abs(res2[0])
+OmegaMat = vectorize(OmegaMat)
+
+
+def Gn(E, D, nz):
+	"""Density of states for the lattic trap (Beloy2020 eq. 11)
+	
+	Inputs
+	------
+	E : potential energy in Er
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number of the starting level
+		
+	Returns
+	-------
+	G : density of states at energy E (same units of Beloy2020 fig. 3)
+	
+	"""
+
+	return m/(2*hbar**2)*R(E, D, nz)**2 *Er /k**2 # *Er convert to Er units
+
+
+def Gr(rc, D, nz):
+	"""Density of states for the lattic trap given rc(Beloy2020 eq. 11)
+	
+	Inputs
+	------
+	rc : Condon point at energy E
+	D : depth of the lattice in Er
+	nz : longitudinal quantum number of the starting level
+		
+	Returns
+	-------
+	G : density of states at energy E (same units of Beloy2020 fig. 3)
+	
+	"""
+
+	return m/(2*hbar**2)*rc**2 *Er /k**2 # *Er convert to Er units
+
+def maxnz(D):
+	"""Return the maximum nz for a given depth"""
+	# ansatz 	twice the harmonic oscillators levels
+	maxn = int(-U(0,D,0)/sqrt(D))
+	test = arange(maxn)
+	return amax(where(U(0,D,test)<0))
+	
+
+
+#lorentzian
+def lor(x, x0, w):
+	""" Simple lorentzian with center x0 and HWHM w peak 0.5
+	"""
+	den = 1 + 1/w**2*(x - x0)**2
+	return 0.5/den
+
+# both sideband
+ #it is faster to calculate sidebands at the same time
+def sbands(x, D, Tz, Tr, b, r, wc, dn=1, Emax=0.,  fac=10):
+	"""Blue sideband as a sum of lorentzian.
+	
+	Inputs
+	------
+	x : frequency in Hz
+	D : depth of the lattice in Er
+	Tz : longitudinal temperature in K
+	Tr : radial temperature in K
+	b : blue sidebands scaling
+	r : red sidebands scaling 
+	wc : carrier half width half maximum
+	dn : order of the sideband (default: 1)
+	Emax : max energy levels populated (default: 0)
+	fac : control the number of lorentzian to be used in the sum
+	higher number will give smoother sidebands but take more computational time
+	(default: 10)
+		
+	Returns
+	-------
+	Both sidebands as excitation.
+	
+	"""
+	Nz = int(maxnz(D)*1.+0.5)
+	betar = Er/(kB*Tr)
+	betaz = Er/(kB*Tz)
+
+	# simple exp factor for a given Tz
+	# will be just used computationally to reduce the number of lorentzian used at high nz
+	# r = exp(-betaz)
+
+	tot = zeros(x.shape)
+	tnorm = 0
+
+	
+	for nz in arange(Nz+1):
+		Emin = U(0, D, nz)
+		#Emax = 0 # I do not think this should change -- atoms close to this are lost, but I should kept the full normalization
+	
+		# this just save computational time
+		# use less samples for high levels
+		# formula with r is normalized exponential distribution (from gemotric series)
+		# high dn use higher number because it has sharper lorentzians
+		#N = int(Natoms*r**nz/(1-r**Nz)*(1-r)+2.)*dn 
+		
+		# new way to estabish the number of lorentzians
+		N = int(DeltaU(0, D, nz, dn)*fac*(nz+1)**-0.5) # other idea use Omega
+	
+
+		
+		# Uniform sampling in E
+		EE = linspace(Emin, Emax, N)[:, newaxis]
+		rc = R(EE, D, nz)
+		#dE = (Emax - Emin)/N		
+		
+		
+			
+				
+		# calc normalization		
+		pp = Gr(rc, D, nz) * exp(-(EE-Emin)*betar) * exp(-Emin*betaz) 
+		tnorm += trapz(pp, EE, axis=0) #sum(pp, axis=0) *dE #trapz(pp, EE, axis=0) #trapz is a bit slower, but handles better different Ns
+		
+		# blue		
+		x0 = DeltaU(rc, D, nz, dn)*vrec
+		ff = Omega(rc, D, nz, dn)*wc
+		
+		# sum lorentzian for blue sideband - note cutoff on energy
+		blue = pp*lor(x, x0, ff) *(U(rc, D, nz+dn)<Emax)
+
+		res = b*trapz(blue, EE, axis=0) #sum(yy, axis=0)*dE #trapz(yy, EE, axis=0) # speed sum > trapz > simps
+		
+		tot += res
+
+		
+		
+		# red
+		if nz >= dn:		
+			# rc = R(EE, D, nz)  # same as blue
+			x0 = DeltaU(rc, D, nz, -dn)*vrec
+			ff = Omega(rc, D, nz-dn, dn)*wc
+			
+			# sum lorentzian on red sideband					
+			red = pp*lor(x, x0, ff)
+			
+			res = r*trapz(red, EE, axis=0) #trapz(yy, EE, axis=0) # sum(yy, axis=0)*median(diff(EE, axis=0)) #
+			
+			tot += res
+		
+		
+	return tot/tnorm
+
+
+def distrib(E, D, Tz, Tr, Emax=0.):
+	""" Distribution of atoms in the trap.	
+	"""
+	Nz = maxnz(D)
+	betar = Er/(kB*Tr)
+	betaz = Er/(kB*Tz)
+	nz = arange(Nz+1)[:, newaxis]
+
+	Emin = U(0, D, nz)
+	pp = Gn(E, D, nz) * exp(-(E-Emin)*betar) * exp(-Emin*betaz) *(E < Emax)
+	
+	
+	AEmin = amin(Emin)
+	
+	EE = arange(AEmin, Emax+1, 1.)
+	ppNorm = Gn(EE, D, nz) * exp(-(EE-Emin)*betar) * exp(-Emin*betaz) 
+	znorm = trapz(ppNorm, EE, axis=1)
+	norm = sum(znorm)
+	
+		
+	return pp/norm, znorm/norm
+
+
+
+
+
+
+
+def fit_lor(x, A, x0, w):
+	return A * lor(x, x0, w)
+
+
+def fit_sbands(x, A, D, Tz, Tr, Sb=0.): # note misisng w from parameters
+	return  sbands(x, D, Tz, Tr, A, A*(1+Sb), w0, dn=1, Emax=0,  fac=args.fac)
+
+
+if __name__ == '__main__':
+	allfigname = os.path.join(args.dir,args.log + '.png')
+	alltxtname = os.path.join(args.dir,args.log + '.dat')
+
+	alltxt = open(alltxtname, 'w')
+	labels = ['Ac','fc/Hz','wc/Hz', 'A', 'D/Er','Tz/K','Tr/K', 'Sb', 'Nat/mV']
+	tit = "#file              \ttag\t" + '\t'.join(labels) + '\n'
+	logfmt="{}\t{}"+  "\t{:.2uS}"*len(labels) + "\n"
+	alltxt.write(tit)
+
+	Nf = len(args.infile)
+
+
+
+	for i, fil in enumerate(args.infile):
+		basename = os.path.basename(fil.name)[:-4]
+		numname = os.path.basename(fil.name)[:3]
+		figname = os.path.join(args.dir,basename+'.png')
+		txtname = os.path.join(args.dir,basename+'.txt')
+		
+		# load tags and bridge freq
+		# either load the tag corresponding to the file or the last value (possibly the only one if only one tag is specified)
+		# same for bridge
+		# bridge = args.bridge[min(i, len(args.bridge)-1)]
+		tag = args.tag[min(i, len(args.tag)-1)]
+		
+		
+		print('file: '+fil.name)
+		print('tag: '+tag)
+		
+		# fitting procedure
+		# =================
+		
+		data = genfromtxt(fil, usecols=(2,3,4,5,6,7),  skip_footer=1, skip_header=1)
+		
+		
+		freq = data[:, 0]
+		freq = around(freq, 4)
+		funique = unique(freq) #find scan frequency values
+
+		# average data
+		ave = []
+		for f in funique:
+			ave += [mean(data[where(freq==f)], axis=0)]
+
+		
+		ave = array(ave)	
+		#freq = funique
+		
+		
+		# unpack!
+		freq, g,b,e,num,exc = ave.T
+		G = g-b
+		E = e-b
+		
+		
+		
+		# lets get down some scales from labedit exc
+		medex = mean(exc)
+		test = where(exc > medex)[0]
+		
+		fmi = freq[test[0]]
+		fma = freq[test[-1]]
+		fce = (fmi+fma)/2
+		fxc = (fma-fmi)/2
+		
+		
+		
+		# now recalculate excitation eta on the red side of the spectrum
+		nscale = 5e3 # Hz
+		mask = funique < fce + nscale
+		
+		def findeta(eta, g, e):
+			return std(g+e/eta)
+			
+		res = opt.minimize(findeta, 0.97, args=(G[mask],E[mask]))
+		eta = res.x[0]	# we found abug for wich the first blue pulse gives less signal than the third, so eta can be > 1 !?!
+		
+			
+		N = G + E/eta
+		baseN = median(N[mask])
+		
+		
+		
+		
+		
+		
+		# now use the new data
+		# this substantially fit just th excitation
+		exc = E/baseN
+
+
+		# fit carrier
+		cscale = 10e3 # Hz
+		mask = abs(funique - fce) < cscale
+		
+		cfreq = freq[mask]
+		cexc = exc[mask]
+		
+		a = amax(cexc)*2
+		fc = cfreq[argmax(cexc)]
+		
+		copt, ccov = opt.curve_fit(fit_lor, cfreq, cexc, p0=[a, fc+100, cscale/10])
+
+		# save carrier width and translate to center
+		w0  = copt[2]
+		freq -= copt[1]
+		copt[1] = 0
+		
+		# remove carrier for future fits
+		sexc = exc - fit_lor(freq, *copt)
+		
+		# guess sbands parameters
+		A = sum(cexc)*median(diff(freq))/w0
+		D = fxc**2/(4*vrec**2)*args.Dscale
+		
+		if args.Tz:
+			Tz =  args.Tz
+		else:
+			Tz =  D*Er/kB*args.Tzscale
+				
+		if args.Tr:		
+			Tr = args.Tr
+		else:
+			Tr = D*Er/kB*args.Trscale
+		
+
+		if args.Sb:
+			sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr,0.], bounds=([0., 0., 1e-7, 1e-7,-1.],[300, 2*D, 1e-4, 1e-4,1.]))
+		else:	# fix Sb = sideband height balance to 0
+			sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr,0.], bounds=([0., 0., 1e-7, 1e-7,-1e-15],[300, 2*D, 1e-4, 1e-4,1e-15]))
+		
+
+		
+		
+		
+		# Plot fit
+		ff = linspace(amin(freq),amax(freq),400)
+		fit = fit_sbands(ff, *sopt) + fit_lor(ff, *copt)
+		
+		
+		# single plot
+		figure('comp', figsize=(12.8,4.8))
+		plot(freq,exc, 'o', label=numname, color=cm.viridis(i/Nf))
+		plot(ff,fit, color=cm.viridis(i/Nf))
+		grid(True)
+		ylabel('Excitation probability')
+		xlabel('Frequency detuning /Hz')
+		legend(loc=0)
+		
+		
+		
+		# for each file
+		figure(figsize=(12.8,4.8))
+		title(basename)
+		plot(freq,exc, 'o')
+		plot(ff, fit)
+		grid(True)
+		ylabel('Excitation probability')
+		xlabel('Frequency detuning /Hz')
+		savefig(figname)
+		
+		
+			
+		
+		
+		# extract parameters
+		c_par = correlated_values(copt, ccov)
+		s_par = correlated_values(sopt, scov)
+
+		Natoms = ufloat(mean(data[:,-2]) ,std(data[:,-2]))
+
+		print('A = {:.2uS}'.format(s_par[0]))
+		print('D = {:.2uS} Er'.format(s_par[1]))
+		print('vz = {:.2uS} kHz'.format(s_par[1]**0.5*vrec*2*1e-3))
+		print('Tz = {:.2uS} K'.format(s_par[2]))
+		print('Tr = {:.2uS} K'.format(s_par[3]))
+		print('wc = {:.2uS} Hz'.format(c_par[2]))
+		print('Sb = {:.2uS}'.format(s_par[4]))
+		print('Nat = {:.2uS} mV'.format(Natoms))
+		print('eta = {:.3}'.format(eta))
+		print('\n')
+
+
+
+
+			
+			
+		# save data in tabular form on the common file
+		alltxt.write(logfmt.format(basename, tag, *c_par, *s_par, Natoms))
+
+		
+
+	figure('comp')
+	savefig(allfigname)
+
+
+	alltxt.write("# File generated on: " + str(datetime.now()) + "\n")		
+	alltxt.write("# With the command line: " + " ".join(command) + '\n')		
+	alltxt.write("# Script version: " +  __version__ + '\n')		
+	alltxt.close()
+
+	show()
+
+	if args.Tfit:
+		# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+		data = genfromtxt(alltxtname, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(2,2+len(labels))}, encoding=None, deletechars=set())
+		
+		D = unumpy.nominal_values(data['D/Er'])
+		uD = unumpy.std_devs(data['D/Er'])
+		
+			
+		Tz = unumpy.nominal_values(data['Tz/K'])
+		uTz = unumpy.std_devs(data['Tz/K'])
+
+
+		Tr = unumpy.nominal_values(data['Tr/K'])
+		uTr = unumpy.std_devs(data['Tr/K'])
+			
+		
+		Na = unumpy.nominal_values(data['Nat/mV'])
+		uNa = unumpy.std_devs(data['Nat/mV'])
+		
+		
+		
+		if args.Tquad:
+			# quadratic fit
+			def fun(x, a, b):
+				return a*(x*Er)/kB + b*x**2*Er/kB
+		
+			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.001])
+			ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.001])
+
+			z_par = correlated_values(zopt, zcov)
+			r_par = correlated_values(ropt, rcov)
+			
+			print('Tfit - quadratic\n')
+			print('Az = {:.2uS}'.format(z_par[0]))
+			print('Bz = {:.2uS}'.format(z_par[1]))
+			print('Ar = {:.2uS}'.format(r_par[0]))
+			print('Br = {:.2uS}'.format(r_par[1]))
+			
+			Ttxtname = os.path.join(args.dir,args.log + '-tfit.dat')
+			Ttxt = open(Ttxtname, 'w')
+			Tlabels = ['Az', 'Bz', 'Ar', 'Br']
+			Ttit = '#' + '\t'.join(Tlabels) + '\n'
+			Tlogfmt="\t".join(["{:.2uS}"]*len(Tlabels)) + "\n"
+			
+			Ttxt.write(Ttit)
+			Ttxt.write('#\n# Temperature fits\n')
+			Ttxt.write('# kB*T/Er = A*(U/Er) + B*(U/Er)**2\n')
+			Ttxt.write(Tlogfmt.format(*z_par,*r_par))
+			Ttxt.close()
+		else:
+			# linear fit
+			def fun(x, a):
+				return a*(x*Er)/kB
+		
+			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2,])
+			ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2,])
+
+			z_par = correlated_values(zopt, zcov)
+			r_par = correlated_values(ropt, rcov)
+			
+			print('Tfit - linear\n')
+			print('Az = {:.2uS}'.format(z_par[0]))
+			#print('Bz = {:.2uS}'.format(z_par[1]))
+			print('Ar = {:.2uS}'.format(r_par[0]))
+			#print('Br = {:.2uS}'.format(r_par[1]))
+			
+			Ttxtname = os.path.join(args.dir,args.log + '-tfit.dat')
+			Ttxt = open(Ttxtname, 'w')
+			Tlabels = ['Az', 'Ar',]
+			Ttit = '#' + '\t'.join(Tlabels) + '\n'
+			Tlogfmt="\t".join(["{:.2uS}"]*len(Tlabels)) + "\n"
+			
+			Ttxt.write(Ttit)
+			Ttxt.write('#\n# Temperature fits\n')
+			Ttxt.write('# kB*T/Er = A*(U/Er)\n')
+			Ttxt.write(Tlogfmt.format(*z_par,*r_par))
+			Ttxt.close()
+			
+		
+			
+		
+		figure()
+		scale=1e6
+
+
+		errorbar(D, Tz*scale, yerr=uTz*scale, xerr=uD, fmt='o', label='Tz')
+		errorbar(D, Tr*scale, yerr=uTr*scale, xerr=uD, fmt='d', label='Tr')
+
+		uu = linspace(0, max(D)*1.1, 100)
+
+		plot(uu, fun(uu, *zopt)*scale)
+		plot(uu, fun(uu, *ropt)*scale)
+		
+		legend(loc=0)
+		xlabel('D/ Er')
+		ylabel('T /µK')
+		grid(True)
+
+		tfitname = os.path.join(args.dir,args.log + '-tfit.png')
+		savefig(tfitname)
+
+
+		figure()
+		scale=1
+		
+		errorbar(D, Na*scale, yerr=uNa*scale, xerr=uD, fmt='o', label='Natoms')
+		
+		legend(loc=0)
+		xlabel('D/ Er')
+		ylabel('Natoms /mV')
+		grid(True)
+		xlim(0,None)
+		
+		nfitname = os.path.join(args.dir,args.log + '-N.png')
+		savefig(nfitname)
+		
+
