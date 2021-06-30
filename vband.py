@@ -1,13 +1,28 @@
 
-"""
-Sideband fit script for IT-Yb1
-
-*changelog*
-20210526 - added options for linear or parabolic temperature fits
-20210504 - added two if __name__ == '__main__' so that the script can be imported
-
-
-"""
+# -*- coding: utf-8 -*-
+#
+# vband
+# Copyright (C) 2021  Marco Pizzocaro - Istituto Nazionale di Ricerca Metrologica (INRIM)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# SPDX-License-Identifier: MIT
 
 
 from numpy import *
@@ -26,6 +41,7 @@ import time
 import pygsl.testing.sf as sf
 
 from matplotlib.pyplot import *
+from matplotlib import cm
 
 
 import os
@@ -46,22 +62,21 @@ __version__="1.1"
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Process sidebands data based on new model')
-	parser.add_argument('infile', type=argparse.FileType('r'), nargs='+', help='File or list of files to be processed')
+	parser.add_argument('infile', type=argparse.FileType('r'),  nargs='*', help='File or list of files to be processed', default=[])
 	parser.add_argument('--dir',  help='Directory for storing results', default='./Vbands')
-	parser.add_argument('--log',  help='Filename where to save a sumamry of the results', default='last')
-	parser.add_argument('-tag', nargs='+', help='Tag or list of tags for each file' ,default=['-'])
+	parser.add_argument('--log',  help='Filename where to save the results. Results are appended.', default='all')
+	parser.add_argument('--tag', nargs='+', help='Tag or list of tags for each file', default='-')
 
-	parser.add_argument('-Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
-	parser.add_argument('-Tzscale',  type=float, help='Scale for the initial guess of Tz', default=0.2)
-	parser.add_argument('-Trscale',  type=float, help='Scale for the initial guess of Tr', default=0.2)
-	parser.add_argument('-Tz',  type=float, help='Fix the initial guess of Tz, then Tzscale is ignored', default=None)
-	parser.add_argument('-Tr',  type=float, help='Fix the initial guess of Tr, then Trscale is ignored', default=None)
-	parser.add_argument('-fac',  type=float, help='Quality of integration parameter', default=10)
-	parser.add_argument('-Sb', action='store_true', help='Fit separately blue/red sidebands height.')
+	parser.add_argument('--Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
+	parser.add_argument('--Tzscale',  type=float, help='Scale for the initial guess of Tz', default=0.2)
+	parser.add_argument('--Trscale',  type=float, help='Scale for the initial guess of Tr', default=0.2)
+	parser.add_argument('--Tz',  type=float, help='Fix the initial guess of Tz, then Tzscale is ignored', default=None)
+	parser.add_argument('--Tr',  type=float, help='Fix the initial guess of Tr, then Trscale is ignored', default=None)
+	parser.add_argument('--fac',  type=float, help='Quality of integration parameter', default=10)
 
-	parser.add_argument('-Tfit', action='store_true', help='Fit T vs U for processed files')
-	parser.add_argument('-Tquad', action='store_true', help='Fit T vs U with a quadratic function')
-	parser.add_argument('-Nfit', action='store_true', help='Show N vs U for processed files')
+	parser.add_argument('--nofit', action='store_true', help='Do not fit for all processed files')
+	parser.add_argument('--Tquad', action='store_true', help='Fit a quadratic T vs D.')
+	#parser.add_argument('--Nfit', action='store_true', help='Show N vs U for processed files')
 
 
 
@@ -73,7 +88,7 @@ if __name__ == '__main__':
 		os.makedirs(args.dir)
 
 
-	ion()
+	ioff()
 	close('all')
 
 
@@ -402,10 +417,10 @@ if __name__ == '__main__':
 	allfigname = os.path.join(args.dir,args.log + '.png')
 	alltxtname = os.path.join(args.dir,args.log + '.dat')
 
-	alltxt = open(alltxtname, 'w')
-	labels = ['Ac','fc/Hz','wc/Hz', 'A', 'D/Er','Tz/K','Tr/K', 'Sb', 'Nat/mV']
-	tit = "#file              \ttag\t" + '\t'.join(labels) + '\n'
-	logfmt="{}\t{}"+  "\t{:.2uS}"*len(labels) + "\n"
+	alltxt = open(alltxtname, 'a')
+	labels = ['Ac','fc/Hz','wc/Hz', 'A', 'D/Er','Tz/K','Tr/K', 'Nat/mV']
+	tit = "#file" + " "*32 + "\ttag\tl/mV\tspin\t" + '\t'.join(labels) + '\n'
+	logfmt="{}\t{}\t{}\t{}"+  "\t{:.2uS}"*len(labels) + "\n"
 	alltxt.write(tit)
 
 	Nf = len(args.infile)
@@ -418,15 +433,41 @@ if __name__ == '__main__':
 		figname = os.path.join(args.dir,basename+'.png')
 		txtname = os.path.join(args.dir,basename+'.txt')
 		
-		# load tags and bridge freq
-		# either load the tag corresponding to the file or the last value (possibly the only one if only one tag is specified)
-		# same for bridge
-		# bridge = args.bridge[min(i, len(args.bridge)-1)]
+		
+		# parse metadata
+			
+		# rewind the file
+		fil.seek(0)
+		# read first 15 lines (mostly comments) 
+		# https://stackoverflow.com/questions/1767513/read-first-n-lines-of-a-file-in-python
+		comments = [next(fil) for x in range(15)]
+		
+		
+		# regex l=... for tag and s=... for spin
+		# https://stackoverflow.com/questions/46690385/how-to-read-numerical-data-from-the-comment-of-a-txt-file-into-numpy
+		# regex inspired from https://stackoverflow.com/questions/63544447/python-regex-parse-string-and-extract-key-value-pairs
+		
+		ll = []
+		ss = []
+		
+		for line in comments:
+			ll += re.findall(r'l\s?=\s?(\".*?\"|\S*)', line) 
+			ss += re.findall(r's\s?=\s?(\".*?\"|\S*)', line) 
+			
+		l = ','.join(ll)
+		spin = ','.join(ss)
+		
 		tag = args.tag[min(i, len(args.tag)-1)]
+		
+		
+		
+		
 		
 		
 		print('file: '+fil.name)
 		print('tag: '+tag)
+		print('l: '+l)
+		print('spin: '+spin)
 		
 		# fitting procedure
 		# =================
@@ -525,10 +566,8 @@ if __name__ == '__main__':
 			Tr = D*Er/kB*args.Trscale
 		
 
-		if args.Sb:
-			sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr,0.], bounds=([0., 0., 1e-7, 1e-7,-1.],[300, 2*D, 1e-4, 1e-4,1.]))
-		else:	# fix Sb = sideband height balance to 0
-			sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr,0.], bounds=([0., 0., 1e-7, 1e-7,-1e-15],[300, 2*D, 1e-4, 1e-4,1e-15]))
+		# fit
+		sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr], bounds=([0., 0., 1e-7, 1e-7],[300, 2*D, 1e-4, 1e-4]))
 		
 
 		
@@ -559,7 +598,7 @@ if __name__ == '__main__':
 		ylabel('Excitation probability')
 		xlabel('Frequency detuning /Hz')
 		savefig(figname)
-		
+		#pause(0.001) # matplotlib need a pause to catch up -- see https://stackoverflow.com/questions/28269157/plotting-in-a-non-blocking-way-with-matplotlib
 		
 			
 		
@@ -576,7 +615,6 @@ if __name__ == '__main__':
 		print('Tz = {:.2uS} K'.format(s_par[2]))
 		print('Tr = {:.2uS} K'.format(s_par[3]))
 		print('wc = {:.2uS} Hz'.format(c_par[2]))
-		print('Sb = {:.2uS}'.format(s_par[4]))
 		print('Nat = {:.2uS} mV'.format(Natoms))
 		print('eta = {:.3}'.format(eta))
 		print('\n')
@@ -587,24 +625,24 @@ if __name__ == '__main__':
 			
 			
 		# save data in tabular form on the common file
-		alltxt.write(logfmt.format(basename, tag, *c_par, *s_par, Natoms))
+		alltxt.write(logfmt.format(basename, tag, l, spin, *c_par, *s_par, Natoms))
 
 		
+	if Nf>1:
+		figure('comp')
+		savefig(allfigname)
 
-	figure('comp')
-	savefig(allfigname)
 
-
-	alltxt.write("# File generated on: " + str(datetime.now()) + "\n")		
+	alltxt.write("# Above data generated on: " + str(datetime.now()) + "\n")		
 	alltxt.write("# With the command line: " + " ".join(command) + '\n')		
-	alltxt.write("# Script version: " +  __version__ + '\n')		
+	#alltxt.write("# Script version: " +  __version__ + '\n')		
 	alltxt.close()
 
-	show()
+	
 
-	if args.Tfit:
+	if not args.nofit:
 		# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
-		data = genfromtxt(alltxtname, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(2,2+len(labels))}, encoding=None, deletechars=set())
+		data = genfromtxt(alltxtname, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(4,4+len(labels))}, encoding=None, deletechars=set())
 		
 		D = unumpy.nominal_values(data['D/Er'])
 		uD = unumpy.std_devs(data['D/Er'])
@@ -686,19 +724,25 @@ if __name__ == '__main__':
 		figure()
 		scale=1e6
 
-
-		errorbar(D, Tz*scale, yerr=uTz*scale, xerr=uD, fmt='o', label='Tz')
-		errorbar(D, Tr*scale, yerr=uTr*scale, xerr=uD, fmt='d', label='Tr')
+		for i, x in enumerate(set(data['spin'])):
+			mask = where(data['spin']==x)
+			errorbar(D[mask], Tz[mask]*scale, yerr=uTz[mask]*scale, xerr=uD[mask], fmt='o', color=cm.tab20(1-i), label='Tz, s={}'.format(x))
+			errorbar(D[mask], Tr[mask]*scale, yerr=uTr[mask]*scale, xerr=uD[mask], fmt='d', color=cm.tab20(3-i), label='Tr, s={}'.format(x))
 
 		uu = linspace(0, max(D)*1.1, 100)
 
-		plot(uu, fun(uu, *zopt)*scale)
-		plot(uu, fun(uu, *ropt)*scale)
+		plot(uu, fun(uu, *zopt)*scale, color=cm.tab20(4))
+		plot(uu, fun(uu, *ropt)*scale,  color=cm.tab20(6))
 		
 		legend(loc=0)
 		xlabel('D/ Er')
 		ylabel('T /µK')
 		grid(True)
+
+		left, right = xlim()
+		if right < 550:
+			xlim(left, 550)
+
 
 		tfitname = os.path.join(args.dir,args.log + '-tfit.png')
 		savefig(tfitname)
@@ -707,7 +751,9 @@ if __name__ == '__main__':
 		figure()
 		scale=1
 		
-		errorbar(D, Na*scale, yerr=uNa*scale, xerr=uD, fmt='o', label='Natoms')
+		for i, x in enumerate(set(data['spin'])):
+			mask = where(data['spin']==x)
+			errorbar(D[mask], Na[mask]*scale, yerr=uNa[mask]*scale, xerr=uD[mask], color=cm.tab20(1-i), fmt='o', label='Natoms s={}'.format(x))
 		
 		legend(loc=0)
 		xlabel('D/ Er')
@@ -715,7 +761,40 @@ if __name__ == '__main__':
 		grid(True)
 		xlim(0,None)
 		
+		left, right = xlim()
+		if right < 550:
+			xlim(left, 550)
+
+		
 		nfitname = os.path.join(args.dir,args.log + '-N.png')
 		savefig(nfitname)
+		
+		
+		# also fit tags
+		l = data['l/mV'].astype(float)
+		
+		def fun(x, A):
+			return A*x
+			
+		popt, pcov = opt.curve_fit(fun, l, D, sigma=uD)
+		
+		
+		figure()
+		
+
+		errorbar(l, D, yerr=uD, fmt='o')
+
+		ll = linspace(0, max(l)*1.1, 100)
+
+		plot(ll, fun(ll, *popt))
+		
+		xlabel('l /mV')
+		ylabel('D/ Er')
+		
+		grid(True)
+		
+		
+		
+	show(block=False) # note i prefer to be ioff for this script
 		
 
