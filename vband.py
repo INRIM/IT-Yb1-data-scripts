@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 #
 # vband
@@ -61,10 +60,10 @@ from uncertainties import unumpy
 __version__="1.1"
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description='Process sidebands data based on new model')
+	parser = argparse.ArgumentParser(description='Process IT-Yb1 sideband data based on a Born-Oppenheimer model')
 	parser.add_argument('infile', type=argparse.FileType('r'),  nargs='*', help='File or list of files to be processed', default=[])
 	parser.add_argument('--dir',  help='Directory for storing results', default='./Vbands')
-	parser.add_argument('--log',  help='Filename where to save the results. Results are appended.', default='all')
+	parser.add_argument('--log',  help='Filename where to save the results. Results are appended', default='all')
 	parser.add_argument('--tag', nargs='+', help='Tag or list of tags for each file', default='-')
 
 	parser.add_argument('--Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
@@ -75,7 +74,7 @@ if __name__ == '__main__':
 	parser.add_argument('--fac',  type=float, help='Quality of integration parameter', default=10)
 
 	parser.add_argument('--nofit', action='store_true', help='Do not fit for all processed files')
-	parser.add_argument('--Tquad', action='store_true', help='Fit a quadratic T vs D.')
+	parser.add_argument('--Tquad', action='store_true', help='Fit a quadratic T vs D')
 	#parser.add_argument('--Nfit', action='store_true', help='Show N vs U for processed files')
 
 
