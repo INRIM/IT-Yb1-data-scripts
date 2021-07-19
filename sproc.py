@@ -51,7 +51,7 @@ import sys
 
 
 fYb = 518295836590865.
-
+N0 = 40 #mV ref for density shift ~ 500 atoms
 
 
 
@@ -63,6 +63,14 @@ parser.add_argument('-g',  type=str, nargs='+', help='Good data ranges as list o
 parser.add_argument('--density','-d', action='store_true', help='Interpret data as density data')
 parser.add_argument('--triple', '-t', action='store_true', help='Interpret data as the interleave of 3 cycles')
 parser.add_argument('--single', '-s', action='store_true', help='Interpret data as only one cycle')
+
+parser.add_argument('--lattice_l',  type=float, nargs='+', help='lattice depth signal in mV')
+parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequency as deviation from 394 798 000 MHz')
+parser.add_argument('--Toven',  type=float, nargs='+', help='oven temperature in degree Celsius')
+parser.add_argument('--trabi',  type=float, nargs='+', help='rabi time in ms')
+
+parser.add_argument('--sbfile',  nargs='*', help='sidebands file or files (used to automatically populate lattice info)', default=['./Vbands/all.dat'])
+parser.add_argument('--dfile',  nargs='*', help='density file or files (output for density analysis or used to automatically populate lattice info)', default=['./Proc/density.dat'])
 
 command = sys.argv
 args = parser.parse_args()
@@ -138,7 +146,6 @@ filo.write("\n")
 arrays = []
 aoms = []
 
-parse_list = ["lattice_high", "lattice_low", "lattice_freq", "trabi", "Toven"]
 
 for f in args.infile:
 	data = genfromtxt(f,skip_footer=1)
@@ -157,13 +164,34 @@ for f in args.infile:
 	f.seek(0)
 	# read frist 15 lines (comments) 
 	# https://stackoverflow.com/questions/1767513/read-first-n-lines-of-a-file-in-python
-	comments = [next(f) for x in range(20)]
+	comments = [next(f) for x in range(30)]
 	
 	
 	# regex the aom frequency
 	# https://stackoverflow.com/questions/46690385/how-to-read-numerical-data-from-the-comment-of-a-txt-file-into-numpy
 	for line in comments:
-		aoms += [float(x) for x in re.findall('# Synth [\w\s]+ ([0-9]+[.][0-9]+)', line)]
+		aoms += [float(x) for x in re.findall('# Synth [\w\s]+ (\d+[.]\d+)', line)]
+		
+		# regex some metadata, in the form of list of numbers
+		if not args.lattice_l:
+			temp = re.findall("# lattice_l\s*=\s*([\d.,]+[\d.])", line)
+			if temp:
+				args.lattice_l = [float(x) for x in temp[0].split(',')]
+	
+		if not args.lattice_f:
+			temp = re.findall("# lattice_f\s*=\s*([\d.,]+[\d.])", line)
+			if temp:
+				args.lattice_f = [float(x) for x in temp[0].split(',')]
+	
+		if not args.trabi:
+			temp = re.findall("# trabi\s*=\s*([\d.,]+[\d.])", line)
+			if temp:
+				args.trabi = [float(x) for x in temp[0].split(',')]
+	
+		if not args.Toven:
+			temp = re.findall("# Toven\s*=\s*([\d.,]+[\d.])", line)
+			if temp:
+				args.Toven = [float(x) for x in temp[0].split(',')]
 	
 	
 	
@@ -233,7 +261,7 @@ for x in splits:
 for (d,t) in zip(ldata,cycles):
 	plot(d[:,8],label=t)
 legend(loc=0)	
-
+pause(0.001)
 
 
 # natoms
@@ -256,6 +284,7 @@ for (d,t) in zip(ldata,cycles):
 	#plot(d[:,5],label=str(t) + "L")
 	#plot(d[:,6],label=str(t) + "R")
 legend(loc=0)
+pause(0.001)
 	
 #excitations
 figure()
@@ -276,6 +305,7 @@ for (d,t) in zip(ldata,cycles):
 	plot(d[:,3], label=str(t) + "L")
 	plot(d[:,4], label=str(t) + "R")
 legend(loc=0)
+pause(0.001)
 
 
 
@@ -288,6 +318,7 @@ for (d,t) in zip(cdata,cycles):
 	plot(d[:,0]-epoch0, d[:,8],label=t)
 legend(loc=0)
 pause(0.001)
+
 
 #========================================
 # Timescale
@@ -320,9 +351,7 @@ Time infos:
 t0 = {:.2f} s
 Run duration = {:.2f} s
 Meas. time = {:.2f} s
-Meas. points = {}
-
-"""
+Meas. points = {}"""
 out = fmt.format(t0, max(t)-min(t), len(t)*t0, len(t))
 filo.write(out)
 print(out)
@@ -334,8 +363,9 @@ means = [mean(d, axis=0) for d in cdata]
 stds = [std(d, axis=0)/sqrt(len(d)-1) for d in cdata]
 
 
-out = """Averages per cycle
-# Cycle	Exc	Num /mV	ExcL	ExcR	NumL /mV	NumR /mV	Err /Hz	Good points"""
+out = """
+Averages per cycle
+#Cycle\tExc     \tNum /mV \tExcL    \tExcR    \tNumL /mV \tNumR /mV \tErr /Hz \tGood points"""
 filo.write(out)
 print(out)
 fmt = "{}" + "\t{:S}"*6 + "\t{:.2uS}\t{:.2f}"
@@ -372,10 +402,10 @@ pNdev = []
 
 out = """
 Averages per lock
-# Lock	Exc	Num /mV	Bsplit /Hz	Err /Hz"""
-filo.write(out)
+#Lock\tExc     \tNum /mV \tBsplit /Hz\tErr /Hz"""
+filo.write(out + '\n')
 print (out)
-fmt = "{}" + "\t{:S}"*3 + "\t{:.2uS}\n"
+fmt = "{}" + "\t{:S}"*3 + "\t{:.2uS}"
 
 
 
@@ -426,7 +456,7 @@ for i, lock in enumerate(locks):
 	savenum += [mNum]
 
 	out = fmt.format(what, mExc, mNum, mBsplit, mErr)	
-	filo.write(out)
+	filo.write(out + '\n')
 	print (out)
 	
 
@@ -436,8 +466,55 @@ for i, lock in enumerate(locks):
 	conds[i]['Bsplit/Hz'] = mBsplit
 	conds[i]['Err/Hz'] = mErr
 
+	# read sidebands data
+	if args.lattice_l:
+		sb = []
+		for sbf in args.sbfile:
+			# encoding =None avoid a warning
+			# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+			temp = genfromtxt(sbf, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(2,10)}, encoding=None, deletechars=set())
+			sb += [temp]
+			
+		if len(sb)>1:
+			sb1 =concatenate(sb, axis=0)
+		else:
+			sb1 = array(sb)
+
+	
+		
+		# chose the only tag or the corresponding tag
+		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
+
+		# use only data with the right l
+		sb = sb1[where(sb1['l/mV'] == lattice_l)] #will need to interpolate
+		
+		
+		conds[i]['lattice_l'] = lattice_l
+		
+		
+		if len(sb)>0:
+			conds[i]['D/Er'] = sb['D/Er'].mean()
+			conds[i]['Tz/K'] = sb['Tz/K'].mean()	
+			conds[i]['Tr/K'] = sb['Tr/K'].mean()
+		else:
+			print("WARNING: sideband tag not found")
+		
+		
+		
+
+		
+	# other conds
+	if args.lattice_f:
+		conds[i]['lattice_f/MHz'] = args.lattice_f[min(i, len(args.lattice_f)-1)]
+
+	if args.trabi:
+		conds[i]['trabi/ms'] = args.trabi[min(i, len(args.trabi)-1)]
+
+	if args.Toven:
+		conds[i]['Toven/*C'] = args.Toven[min(i, len(args.Toven)-1)]
 
 
+	conds[i]['faom/Hz'] = faom
 	
 
 
@@ -458,6 +535,7 @@ ylabel('Frequency /Hz')
 for data,what in zip(pdata, names):
 	plot(data[:,0]-epoch0, data[:,3],label=what)
 legend(loc=0)
+pause(0.001)
 
 # Bsplit
 figure()
@@ -467,6 +545,7 @@ ylabel('Frequency /Hz')
 for data,what in zip(pdata, names):
 	plot(data[:,0]-epoch0, data[:,4],label=what)
 legend(loc=0)
+pause(0.001)
 
 # Bsplit allan
 figure()
@@ -477,6 +556,7 @@ for data,what in zip(pBdev, names):
 	loglog(data[0], data[1],label=what)
 grid(which="both")
 legend(loc=0)
+pause(0.001)
 
 # Num allan
 figure()
@@ -523,9 +603,9 @@ if len(locks) > 1:
 		title("Diff. Shift " + name)
 		xlabel('Approx data point')
 		ylabel('Rel Frequency Diff.')
-		plot((t-epoch0)/t0, diff_rel)
+		plot((t-epoch0)/t0, diff_rel, label=name)
 		legend(loc=0)
-	
+		pause(0.001)
 	
 		# calc allan deviation using allantools!	
 		tau2, adev, aderr, adn = allantools.oadev(diff_rel, data_type='freq', rate=rate, taus='octave')	
@@ -578,7 +658,7 @@ if len(locks) > 1:
 		#plot(tau2, adev, fmt='.', ecolor='g')
 		grid(which="both")
 		legend(loc=0)
-	
+		pause(0.001)
 
 		whiteunc = a*tottime**-0.5
 
@@ -598,21 +678,21 @@ Difference = {:.2uS} Hz
 Relative Diff = {:.2uS}
 
 White noise = {:.02} at 1 s fitted at {:.1f} s.
-
-
 """
 	
 		out = fmt.format(names[i],names[-1],udiffe,udiff_rel, a, tottime)
-		print (out)
-		filo.write(out)
+		print(out)
+		filo.write(out + '\n')
 	
 		
-				
-			
+		if args.density:
+			fmt = """Density coeff = {:.2uS} /N0    (N0 = {} mV)
+			"""
+			dcoeff =  udiff_rel/(savenum[0]-savenum[1])*N0
+			out = fmt.format(dcoeff, N0)
+			print(out)
+			filo.write(out + '\n')
 	
-	
-
-#udiffe/(savenum[0]-savenum[1])*1e3
 
 
 #for i, lock in enumerate(locks):

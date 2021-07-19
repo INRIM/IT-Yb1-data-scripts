@@ -631,10 +631,11 @@ if __name__ == '__main__':
 		figure('comp')
 		savefig(allfigname)
 
+	if Nf>0:
+		alltxt.write("# Above data generated on: " + str(datetime.now()) + "\n")		
+		alltxt.write("# With the command line: " + " ".join(command) + '\n')		
+		#alltxt.write("# Script version: " +  __version__ + '\n')		
 
-	alltxt.write("# Above data generated on: " + str(datetime.now()) + "\n")		
-	alltxt.write("# With the command line: " + " ".join(command) + '\n')		
-	#alltxt.write("# Script version: " +  __version__ + '\n')		
 	alltxt.close()
 
 	
