@@ -50,13 +50,13 @@ close('all')
 import sys
 
 
-fYb = 518295836590865.
+fYb = 518295836590863.61
 N0 = 40 #mV ref for density shift ~ 500 atoms
 
 
 
 
-parser = argparse.ArgumentParser(description='Process IT-Yb1 data for interleaved measurements')
+parser = argparse.ArgumentParser(description='Process IT-Yb1 data for interleaved measurements', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('infile', type=argparse.FileType('r'), nargs='+', help='File or list of files to be processed')
 parser.add_argument('--dir',  help='Directory for storing results', default='./Proc')
 parser.add_argument('-g',  type=str, nargs='+', help='Good data ranges as list of hyphen separated ints. Unbound is empty, e.g. 40- ', default=['40-'])
@@ -70,7 +70,7 @@ parser.add_argument('--Toven',  type=float, nargs='+', help='oven temperature in
 parser.add_argument('--trabi',  type=float, nargs='+', help='rabi time in ms')
 
 parser.add_argument('--sbfile',  nargs='*', help='sidebands file or files (used to automatically populate lattice info)', default=['./Vbands/all.dat'])
-parser.add_argument('--dfile',  nargs='*', help='density file or files (output for density analysis or used to automatically populate lattice info)', default=['./Proc/density.dat'])
+parser.add_argument('--dfile',  nargs='*', help='density file or files. Automatically strip down to the first 19 chars: num + date + hour.', default=None)
 
 command = sys.argv
 args = parser.parse_args()
@@ -120,11 +120,11 @@ else:
 
 # prepare to save some infos
 conds = [{} for _ in range(len(locks))] # note that [{}]*n create list of n times the same dict!
-
+res = [{} for _ in range(len(locks))] 
 
 # give a proper name
 # now of only the first file!
-name = files[0][:19]
+shortname = files[0][:19]
 name_with_description = files[0][:-4]
 subdir = os.path.join(args.dir,name_with_description)
 
@@ -133,7 +133,7 @@ subdir = os.path.join(args.dir,name_with_description)
 if not os.path.exists(subdir):
 	os.makedirs(subdir)
 
-basename = os.path.join(subdir,name)
+basename = os.path.join(subdir,shortname)
 logname = basename + ".txt"
 log2name = basename + ".dat"
 filo = open(logname, "w")
@@ -236,6 +236,30 @@ for d in ldata:
 		
 	cdd = concatenate(cdd, axis=0)	
 	cdata += [cdd]
+
+
+
+#========================================
+# Load external files
+#========================================
+
+
+if args.sbfile:
+	sb = []
+	for sbf in args.sbfile:
+		# encoding =None avoid a warning
+		# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+		try:
+			temp = genfromtxt(sbf, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(4,11)}, encoding=None, deletechars=set())
+			sb += [temp]
+		except:
+			print('WARNING: No sideband data found.')
+		
+	if len(sb)>1:
+		sbdata =concatenate(sb, axis=0)
+	else:
+		sbdata = array(sb)
+
 
 
 
@@ -467,29 +491,15 @@ for i, lock in enumerate(locks):
 	conds[i]['Err/Hz'] = mErr
 
 	# read sidebands data
-	if args.lattice_l:
-		sb = []
-		for sbf in args.sbfile:
-			# encoding =None avoid a warning
-			# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
-			temp = genfromtxt(sbf, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(2,10)}, encoding=None, deletechars=set())
-			sb += [temp]
-			
-		if len(sb)>1:
-			sb1 =concatenate(sb, axis=0)
-		else:
-			sb1 = array(sb)
-
-	
-		
+	if args.lattice_l and len(sbdata)>0:
 		# chose the only tag or the corresponding tag
 		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
 
 		# use only data with the right l
-		sb = sb1[where(sb1['l/mV'] == lattice_l)] #will need to interpolate
+		sb = sbdata[where(sbdata['l/mV'] == lattice_l)] #will need to interpolate
 		
 		
-		conds[i]['lattice_l'] = lattice_l
+		conds[i]['l/mV'] = lattice_l
 		
 		
 		if len(sb)>0:
@@ -499,13 +509,12 @@ for i, lock in enumerate(locks):
 		else:
 			print("WARNING: sideband tag not found")
 		
-		
-		
+			
 
 		
 	# other conds
 	if args.lattice_f:
-		conds[i]['lattice_f/MHz'] = args.lattice_f[min(i, len(args.lattice_f)-1)]
+		conds[i]['f/MHz'] = args.lattice_f[min(i, len(args.lattice_f)-1)]
 
 	if args.trabi:
 		conds[i]['trabi/ms'] = args.trabi[min(i, len(args.trabi)-1)]
@@ -572,6 +581,7 @@ pause(0.001)
 
 
 
+
 #========================================
 #get the difference between H and L loops
 #========================================
@@ -590,20 +600,20 @@ if len(locks) > 1:
 
 
 		data = column_stack((t,diffe, diff_rel))
-		name = "{}-{}".format(names[i],names[-1])
+		diffname = "{}-{}".format(names[i],names[-1])
 	
 	
 		fmt="%.2f\t%.6f\t%e"
 		header = "Time\tdiff\trel_diff"
 	
-		savetxt(basename + "_proc_diff_" + name + ".dat" , data, fmt=fmt, header = header)
+		savetxt(basename + "_proc_diff_" + diffname + ".dat" , data, fmt=fmt, header = header)
 
 
 		figure()
-		title("Diff. Shift " + name)
+		title("Diff. Shift " + diffname)
 		xlabel('Approx data point')
 		ylabel('Rel Frequency Diff.')
-		plot((t-epoch0)/t0, diff_rel, label=name)
+		plot((t-epoch0)/t0, diff_rel, label=diffname)
 		legend(loc=0)
 		pause(0.001)
 	
@@ -637,7 +647,7 @@ if len(locks) > 1:
 		data_out = column_stack((tau2, adev, aderr))
 		fmt="%.2f\t%.3e\t%.3e"
 		header = "Tau /s\toadev\toadev_unc"
-		savetxt(basename + "_proc_diff_" + name + "_adev.dat", data_out, fmt=fmt, header = header)
+		savetxt(basename + "_proc_diff_" + diffname + "_adev.dat", data_out, fmt=fmt, header = header)
 	
 		# simple fit
 		white = adev*tau2**0.5
@@ -648,7 +658,7 @@ if len(locks) > 1:
 		a = mean(white)	
 
 		figure()
-		title("Interl. Stability " + name)
+		title("Interl. Stability " + diffname)
 		xlabel('Tau /s')
 		ylabel('Allan Dev.')
 		loglog(taufit, a*taufit**-0.5, "r-", label = "White")
@@ -684,104 +694,134 @@ White noise = {:.02} at 1 s fitted at {:.1f} s.
 		print(out)
 		filo.write(out + '\n')
 	
+		res[i]['Diff/Hz'] = udiffe
+		res[i]['relDiff'] = udiff_rel
+		res[i]['white'] = a
+		res[i]['totTime/s'] = tottime
+		
+		res[-1]['Diff/Hz'] = 0.
+		res[-1]['relDiff'] = 0.
+		res[-1]['white'] = a
+		res[-1]['totTime/s'] = tottime
+		
 		
 		if args.density:
-			fmt = """Density coeff = {:.2uS} /N0    (N0 = {} mV)
-			"""
-			dcoeff =  udiff_rel/(savenum[0]-savenum[1])*N0
-			out = fmt.format(dcoeff, N0)
-			print(out)
-			filo.write(out + '\n')
+			# is density if made in similar conditions
+			if(conds[i]['l/mV'] == conds[-1]['l/mV'] and conds[i]['f/MHz'] == conds[-1]['f/MHz'] and conds[i]['trabi/ms'] == conds[-1]['trabi/ms']):
+			
+				
+				fmt = """Density shift = {:.2uS}     (at N0 = {} mV)
+				"""
+				dcoeff =  udiff_rel/(savenum[i]-savenum[-1])*N0
+				out = fmt.format(dcoeff, N0)
+				print(out)
+				filo.write(out + '\n')
+				
+						
+							
+				conds[i]['dcoeff'] = dcoeff
+
+				conds[-1]['dcoeff'] = dcoeff # TODO: handle multiple cycles
+				
+
+
+
+# read density info
+for i, lock in enumerate(locks):
+	# process density tag
 	
+	if args.density:
+		pass
+	elif args.dfile:
+		dtags = [x[:19] for x in args.dfile]
+		dtag = ','.join(dtags)
+		
+		
+		# recover density shift files
+		dfiles = []
+		for tag in dtags:
+			# serach for the tag + ".dat" file
+			# and return the first occurrence
+			# https://stackoverflow.com/questions/1724693/find-a-file-in-python
+			def find(name, path):
+				for root, dirs, files in os.walk(path):
+					if name in files:
+						return os.path.join(root, name)
+			
+			
+			df = find(tag + ".dat", "./Proc")
+			if not df:	
+				# search for the file i the Data folder (slow!)
+				df = find(tag + ".dat", "..")
+			
+			if df:
+				dfiles += [df]
+		
+		# then load the data
+		dd = []
+		for df in dfiles:
+			# encoding =None avoid a warning
+			# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+			try:
+				cols = ['lock','l/mV','f/MHz','trabi/ms','dcoeff']
+				temp = genfromtxt(df, names=True, dtype=None, usecols=cols, converters={'dcoeff': ufloat_fromstr}, encoding=None, deletechars=set())
+				dd += [temp]
+			except:
+				print('WARNING: No density data found.')
+		
+		if len(dd)>1:
+			ddata =concatenate(dd, axis=0)
+		else:
+			ddata = array(dd)
+		
+		
+	
+		
+		# then extract only the relevant data
+		a = ddata['lock'] != 'L' # only non "low" cycles (otherwise will double count)
+		b = ddata['l/mV'] == conds[i]['l/mV'] # same lattice depth
+		c = ddata['f/MHz'] == conds[i]['f/MHz'] # same lattice freq
+		d = ddata['trabi/ms'] == conds[i]['trabi/ms'] # same rabi time
+		mask = (a & b & c & d)
+		dcoeff = ddata[mask]['dcoeff']
+					
+		if len(dcoeff)>0:
+			dcoeff = array(dcoeff)
+			weights = array([x.std_dev**-2 for x in dcoeff])
+			conds[i]['dcoeff'] = sum(weights*dcoeff)/sum(weights)
+		
 
 
-#for i, lock in enumerate(locks):
-#	# process density tag
-#	
-#	if args.dself:
-#		density = udiffe/(conds[0]['Num/mV'] - conds[1]['Num/mV'])
-#		conds[i]['dcoeff/(Hz/mV)'] = density
-#		tags[i]['dtag'] = name
-#	elif args.dtag:
-#		# chose the only tag or the corresponding tag
-#		given = args.dtag[min(i, len(args.dtag)-1)]
-#		mores = given.split(',')
-#		dtags = [x[:19] for x in mores]
-#		dtag = ','.join(dtags)
-#		
-#		
-#		# can handle multiple density files
-#		density = []
-#		
-#		
-#		# recover density shift
-#		for tag in dtags:
-#			# serach for the tag + ".dat" file
-#			# and return the first occurrence
-#			# https://stackoverflow.com/questions/1724693/find-a-file-in-python
-#			def find(name, path):
-#				for root, dirs, files in os.walk(path):
-#					if name in files:
-#						return os.path.join(root, name)
-#			
-#			
-#			df = find(tag + ".dat", ".")
-#			if not df:	
-#				# search for the file i the Data folder (slow!)
-#				df = find(tag + ".dat", "..")
-#			
-#			if df:
-#				#cols to read
-#				# encoding =None avoid a warning
-#				# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
-#				cols = ("Num/mV", "Diff/Hz")
-#				dd = genfromtxt(df, names=True, dtype=None, encoding=None, deletechars = set(), usecols=cols, converters={i: ufloat_fromstr for i in cols})
-#				
-#				diff = dd['Diff/Hz']
-#				nums = dd['Num/mV']
-#			
-#				density += [diff[0]/(nums[0] - nums[1])]
-#				
-#				 
-#				
-#				
-#		if density:
-#			density = array(density)
-#			weights = array([x.std_dev**-2 for x in density])
-#			conds[i]['dcoeff/(Hz/mV)'] = sum(weights*density)/sum(weights)
-#		
-#		tags[i]['dtag'] = dtag
-
-#	
 
 
-## save data to the new .dat file
-#condkeys = ['Exc', 'Num/mV', 'Bsplit/Hz', 'Err/Hz', 'U/Er', 'Chi', 'nz', 'fbridge/MHz', 'Troom/*C', 'Toven/*C', 'trabi/ms', 'faom/Hz', 'dcoeff/(Hz/mV)']
-#tagkeys = ['sbtag', 'dtag']
-#tit = ['key                ', 'lock'] + condkeys + ['Diff/Hz','relDiff','white','toTime/s'] + tagkeys + ['Files']
-##fmt="{}\t{}\t{}"+ "\t{:.2uS}"*(len(condkeys)-3) + "\t{}"*2 + "\t{:.2uS}"*2 + "\t{:.2}"*2 + "\t{}\n"
-#filo2.write("#" + "\t".join(tit) + "\n")
+# save data to the new .dat file
+condkeys = ['Exc', 'Num/mV', 'Bsplit/Hz', 'Err/Hz', 'D/Er', 'Tz/K', 'Tr/K', 'l/mV', 'f/MHz', 'Toven/*C', 'trabi/ms', 'faom/Hz', 'dcoeff']
+reskeys = ['Diff/Hz','relDiff','white','totTime/s']
 
 
-#for i, lock in enumerate(locks):
-#	# note i wrote zero for the difference of the low lock
-#	# need to be adapeted if the interleaved locks are not 2
-#	# the get method on the conds dictionary default to None
-#	out = [name, names[i]] + [conds[i].get(x, None) for x in condkeys] + [udiffe*(i==0), udiff_rel*(i==0), a/sqrt(2), tottime] + [tags[i].get(x, None) for x in tagkeys] + [",".join(files)]
-#	
-#	# if the values in the conds dictionary are sepcified or not change the format
-#	
-#	fmt = ["{:.2uS}" if isinstance(x, UFloat) else "{}" for x in out]
-#	# special format for some thing
-#	fmt[-5] = "{:.3}"
-#	fmt[-4] = "{:.1f}"
-#	
-#	fmt = "\t".join(fmt) + "\n"
-#	
-#	
-#	textout = fmt.format(*out)
-#	
-#	filo2.write(textout)
+tit = ['key                ', 'lock'] + condkeys + reskeys + ['Files']
+#fmt="{}\t{}\t{}"+ "\t{:.2uS}"*(len(condkeys)-3) + "\t{}"*2 + "\t{:.2uS}"*2 + "\t{:.2}"*2 + "\t{}\n"
+filo2.write("#" + "\t".join(tit) + "\n")
+
+
+for i, lock in enumerate(locks):
+	# note i wrote zero for the difference of the low lock
+	# the get method on the conds dictionary default to None
+	out = [shortname, names[i]] + [conds[i].get(x, None) for x in condkeys] + [res[i].get(x, None) for x in reskeys] + [",".join(files)]
+	
+	# if the values in the conds dictionary are sepcified or not change the format
+	
+	fmt = ["{:.2uS}" if isinstance(x, UFloat) else "{}" for x in out]
+	# special format for some thing
+	fmt[-3] = "{:.3}"
+	fmt[-2] = "{:.1f}"
+	
+	fmt = "\t".join(fmt) + "\n"
+	
+	
+	textout = fmt.format(*out)
+	
+	filo2.write(textout)
 	
 	
 	
@@ -796,4 +836,6 @@ for i in get_fignums():
 
 filo.close()
 filo2.close()
+
+
 show()

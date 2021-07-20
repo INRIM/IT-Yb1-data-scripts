@@ -60,10 +60,10 @@ from uncertainties import unumpy
 __version__="1.1"
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description='Process IT-Yb1 sideband data based on a Born-Oppenheimer model')
+	parser = argparse.ArgumentParser(description='Process IT-Yb1 sideband data based on a Born-Oppenheimer model', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('infile', type=argparse.FileType('r'),  nargs='*', help='File or list of files to be processed', default=[])
 	parser.add_argument('--dir',  help='Directory for storing results', default='./Vbands')
-	parser.add_argument('--log',  help='Filename where to save the results. Results are appended', default='all')
+	parser.add_argument('--log',  help='Filename where to save the results. Results are appended', default='all.dat')
 	parser.add_argument('--tag', nargs='+', help='Tag or list of tags for each file', default='-')
 
 	parser.add_argument('--Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
@@ -413,8 +413,8 @@ def fit_sbands(x, A, D, Tz, Tr, Sb=0.): # note misisng w from parameters
 
 
 if __name__ == '__main__':
-	allfigname = os.path.join(args.dir,args.log + '.png')
-	alltxtname = os.path.join(args.dir,args.log + '.dat')
+	allfigname = os.path.join(args.dir,os.path.splitext(args.log)[0] + '.png')
+	alltxtname = os.path.join(args.dir,args.log)
 
 	alltxt = open(alltxtname, 'a')
 	labels = ['Ac','fc/Hz','wc/Hz', 'A', 'D/Er','Tz/K','Tr/K', 'Nat/mV']
