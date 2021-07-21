@@ -74,7 +74,8 @@ if __name__ == '__main__':
 	parser.add_argument('--fac',  type=float, help='Quality of integration parameter', default=10)
 
 	parser.add_argument('--nofit', action='store_true', help='Do not fit for all processed files')
-	parser.add_argument('--Tquad', action='store_true', help='Fit a quadratic T vs D')
+	parser.add_argument('--Tzquad', action='store_true', help='Fit a quadratic Tz vs D')
+	parser.add_argument('--Trlin', action='store_true', help='Fit a linear Tr vs D')
 	#parser.add_argument('--Nfit', action='store_true', help='Show N vs U for processed files')
 
 
@@ -415,6 +416,8 @@ def fit_sbands(x, A, D, Tz, Tr, Sb=0.): # note misisng w from parameters
 if __name__ == '__main__':
 	allfigname = os.path.join(args.dir,os.path.splitext(args.log)[0] + '.png')
 	alltxtname = os.path.join(args.dir,args.log)
+	fitbasename = os.path.splitext(args.log)[0]
+
 
 	alltxt = open(alltxtname, 'a')
 	labels = ['Ac','fc/Hz','wc/Hz', 'A', 'D/Er','Tz/K','Tr/K', 'Nat/mV']
@@ -598,7 +601,9 @@ if __name__ == '__main__':
 		xlabel('Frequency detuning /Hz')
 		savefig(figname)
 		#pause(0.001) # matplotlib need a pause to catch up -- see https://stackoverflow.com/questions/28269157/plotting-in-a-non-blocking-way-with-matplotlib
-		
+		# for many figure do not show
+		if Nf>9:
+			close()
 			
 		
 		
@@ -660,64 +665,42 @@ if __name__ == '__main__':
 		uNa = unumpy.std_devs(data['Nat/mV'])
 		
 		
+		l = data['l/mV'].astype(float)
 		
-		if args.Tquad:
-			# quadratic fit
-			def fun(x, a, b):
-				return a*(x*Er)/kB + b*x**2*Er/kB
 		
+		
+		# quadratic fit
+		def fun(x, a, b):
+			return a*(x*Er)/kB + b*x**2*Er/kB
+		
+		eps = 1e-6
+		
+		if args.Tzquad:
 			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.001])
+		else:	
+			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.], bounds=([0,-eps],[10., eps]))
+
+		if not args.Trlin:
 			ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.001])
-
-			z_par = correlated_values(zopt, zcov)
-			r_par = correlated_values(ropt, rcov)
-			
-			print('Tfit - quadratic\n')
-			print('Az = {:.2uS}'.format(z_par[0]))
-			print('Bz = {:.2uS}'.format(z_par[1]))
-			print('Ar = {:.2uS}'.format(r_par[0]))
-			print('Br = {:.2uS}'.format(r_par[1]))
-			
-			Ttxtname = os.path.join(args.dir,args.log + '-tfit.dat')
-			Ttxt = open(Ttxtname, 'w')
-			Tlabels = ['Az', 'Bz', 'Ar', 'Br']
-			Ttit = '#' + '\t'.join(Tlabels) + '\n'
-			Tlogfmt="\t".join(["{:.2uS}"]*len(Tlabels)) + "\n"
-			
-			Ttxt.write(Ttit)
-			Ttxt.write('#\n# Temperature fits\n')
-			Ttxt.write('# kB*T/Er = A*(U/Er) + B*(U/Er)**2\n')
-			Ttxt.write(Tlogfmt.format(*z_par,*r_par))
-			Ttxt.close()
 		else:
-			# linear fit
-			def fun(x, a):
-				return a*(x*Er)/kB
-		
-			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2,])
-			ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2,])
+			ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.], bounds=([0,-eps],[10., eps]))	
 
-			z_par = correlated_values(zopt, zcov)
-			r_par = correlated_values(ropt, rcov)
-			
-			print('Tfit - linear\n')
-			print('Az = {:.2uS}'.format(z_par[0]))
-			#print('Bz = {:.2uS}'.format(z_par[1]))
-			print('Ar = {:.2uS}'.format(r_par[0]))
-			#print('Br = {:.2uS}'.format(r_par[1]))
-			
-			Ttxtname = os.path.join(args.dir,args.log + '-tfit.dat')
-			Ttxt = open(Ttxtname, 'w')
-			Tlabels = ['Az', 'Ar',]
-			Ttit = '#' + '\t'.join(Tlabels) + '\n'
-			Tlogfmt="\t".join(["{:.2uS}"]*len(Tlabels)) + "\n"
-			
-			Ttxt.write(Ttit)
-			Ttxt.write('#\n# Temperature fits\n')
-			Ttxt.write('# kB*T/Er = A*(U/Er)\n')
-			Ttxt.write(Tlogfmt.format(*z_par,*r_par))
-			Ttxt.close()
-			
+		z_par = correlated_values(zopt, zcov)
+		r_par = correlated_values(ropt, rcov)
+		
+		print('Tfit\n')
+		print('Az = {:.2uS}'.format(z_par[0]))
+		if args.Tzquad:
+			print('Bz = {:.2uS}'.format(z_par[1]))
+		print('Ar = {:.2uS}'.format(r_par[0]))
+		if not args.Trlin:
+			print('Br = {:.2uS}'.format(r_par[1]))
+		
+		
+		
+		
+		
+		
 		
 			
 		
@@ -744,7 +727,7 @@ if __name__ == '__main__':
 			xlim(left, 550)
 
 
-		tfitname = os.path.join(args.dir,args.log + '-tfit.png')
+		tfitname = os.path.join(args.dir,fitbasename + '-tfit.png')
 		savefig(tfitname)
 
 
@@ -766,17 +749,16 @@ if __name__ == '__main__':
 			xlim(left, 550)
 
 		
-		nfitname = os.path.join(args.dir,args.log + '-N.png')
+		nfitname = os.path.join(args.dir,fitbasename + '-N.png')
 		savefig(nfitname)
 		
 		
 		# also fit tags
-		l = data['l/mV'].astype(float)
 		
 		def fun(x, A):
 			return A*x
 			
-		popt, pcov = opt.curve_fit(fun, l, D, sigma=uD)
+		lopt, lcov = opt.curve_fit(fun, l, D, sigma=uD)
 		
 		
 		figure()
@@ -786,12 +768,37 @@ if __name__ == '__main__':
 
 		ll = linspace(0, max(l)*1.1, 100)
 
-		plot(ll, fun(ll, *popt))
+		plot(ll, fun(ll, *lopt))
 		
 		xlabel('l /mV')
 		ylabel('D/ Er')
 		
 		grid(True)
+		
+		Dfitname = os.path.join(args.dir,fitbasename + '-Dfit.png')
+		savefig(Dfitname)
+		
+		
+		l_par = correlated_values(lopt, lcov)
+		
+		print('Dfit\n')
+		print('k = {:.2uS}'.format(l_par[0]))
+					
+		Ttxtname = os.path.join(args.dir,fitbasename + '-fit.dat')
+		Ttxt = open(Ttxtname, 'w')
+		Tlabels = ['Az', 'Bz', 'Ar', 'Br', 'k']
+		Ttit = '#' + '\t'.join(Tlabels) + '\n'
+		Tlogfmt="\t".join(["{:.2uS}"]*len(Tlabels)) + "\n"
+		
+		Ttxt.write(Ttit)
+		Ttxt.write('#\n# Temperature fits\n')
+		Ttxt.write('# kB*T/Er = A*(D/Er) + B*(D/Er)**2\n')
+		Ttxt.write('#\n# Depth fit\n')
+		Ttxt.write('# D/Er = k*l/mV\n#\n')
+		Ttxt.write(Tlogfmt.format(*z_par,*r_par,*l_par))
+		Ttxt.close()
+	
+
 		
 		
 		
