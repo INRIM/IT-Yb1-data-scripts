@@ -44,7 +44,7 @@ from matplotlib import cm
 
 
 import os
-import os.path
+import fnmatch
 import argparse
 import sys
 from datetime import datetime
@@ -65,6 +65,7 @@ if __name__ == '__main__':
 	parser.add_argument('--dir',  help='Directory for storing results', default='./Vbands')
 	parser.add_argument('--log',  help='Filename where to save the results. Results are appended', default='all.dat')
 	parser.add_argument('--tag', nargs='+', help='Tag or list of tags for each file', default='-')
+	parser.add_argument('--num', type=str, nargs='*', help='Search files from num range instead of full name, e.g. 1-10')
 
 	parser.add_argument('--Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
 	parser.add_argument('--Tzscale',  type=float, help='Scale for the initial guess of Tz', default=0.2)
@@ -424,6 +425,35 @@ if __name__ == '__main__':
 	tit = "#file" + " "*32 + "\ttag\tl/mV\tspin\t" + '\t'.join(labels) + '\n'
 	logfmt="{}\t{}\t{}\t{}"+  "\t{:.2uS}"*len(labels) + "\n"
 	alltxt.write(tit)
+
+
+	if args.num:
+		def myint(x):
+			return int(x) if x else None
+	
+		lim_list = [tuple(map(myint, i.split('-'))) for i in args.num]
+		corrected_lim_list = [(x[0],x[0]+1) if len(x)==1  else (x[0],x[1]+1) for x in lim_list]
+		num_list = concatenate([arange(*x) for x in corrected_lim_list])
+		tag_list = ["{:03d}".format(x) for x in num_list]
+		
+		for tag in tag_list:
+			# serach for the tag  file
+			# and return the first occurrence
+			# https://stackoverflow.com/questions/1724693/find-a-file-in-python
+			def find(pattern, path):
+				result = []
+				for root, dirs, files in os.walk(path):
+					for name in files:
+						if fnmatch.fnmatch(name, pattern):
+							result.append(os.path.join(root, name))
+				return result
+			
+			
+			df = find(tag + "_*.dat", ".")
+			if not df:	
+				print("WARNING: I have not found a file starting with {}".format(tag))
+			else:
+				args.infile += [open(f,'r') for f in df]
 
 	Nf = len(args.infile)
 
