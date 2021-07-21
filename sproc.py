@@ -49,6 +49,9 @@ close('all')
 
 import sys
 
+from scipy.constants import k, h
+kB = k
+Er = 2024.*h
 
 fYb = 518295836590863.61
 N0 = 40 #mV ref for density shift ~ 500 atoms
@@ -68,9 +71,13 @@ parser.add_argument('--lattice_l',  type=float, nargs='+', help='lattice depth s
 parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequency as deviation from 394 798 000 MHz')
 parser.add_argument('--Toven',  type=float, nargs='+', help='oven temperature in degree Celsius')
 parser.add_argument('--trabi',  type=float, nargs='+', help='rabi time in ms')
+parser.add_argument('--Troom', action='store_true', help='Load room temperature data')
+parser.add_argument('--Tdir',  help='Folder of temperature data', default="../../Temperature Data/")
 
-parser.add_argument('--sbfile',  nargs='*', help='sidebands file or files (used to automatically populate lattice info)', default=['./Vbands/all.dat'])
+parser.add_argument('--sbfile',  help='sidebands file or files (used to automatically populate lattice info)', default='./Vbands/all-fit.dat')
 parser.add_argument('--dfile',  nargs='*', help='density file or files. Automatically strip down to the first 19 chars: num + date + hour.', default=None)
+
+
 
 command = sys.argv
 args = parser.parse_args()
@@ -140,7 +147,11 @@ filo = open(logname, "w")
 filo2 = open(log2name, "w")
 
 filo.write(" ".join(command))
-filo.write("\n")	
+filo.write("\n\n")	
+
+filo.write("Data generated with the above command line on: " + str(datetime.datetime.now()) + "\n")		
+
+
 
 # load all files in a single array.
 arrays = []
@@ -173,6 +184,7 @@ for f in args.infile:
 		aoms += [float(x) for x in re.findall('# Synth [\w\s]+ (\d+[.]\d+)', line)]
 		
 		# regex some metadata, in the form of list of numbers
+		# note only the first file is read 
 		if not args.lattice_l:
 			temp = re.findall("# lattice_l\s*=\s*([\d.,]+[\d.])", line)
 			if temp:
@@ -239,27 +251,6 @@ for d in ldata:
 
 
 
-#========================================
-# Load external files
-#========================================
-
-
-if args.sbfile:
-	sb = []
-	for sbf in args.sbfile:
-		# encoding =None avoid a warning
-		# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
-		try:
-			temp = genfromtxt(sbf, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(4,11)}, encoding=None, deletechars=set())
-			sb += [temp]
-		except:
-			print('WARNING: No sideband data found.')
-		
-	if len(sb)>1:
-		sbdata =concatenate(sb, axis=0)
-	else:
-		sbdata = array(sb)
-
 
 
 
@@ -269,7 +260,7 @@ if args.sbfile:
 #========================================
 # freq
 figure()
-title("data vs points")
+title(shortname)
 xlabel('Data point')
 ylabel('Frequency /Hz')
 # shade good regions
@@ -290,7 +281,7 @@ pause(0.001)
 
 # natoms
 figure()
-title("data vs points")
+title(shortname)
 xlabel('Data point')
 ylabel('Natoms /mV')
 # shade good regions
@@ -312,7 +303,7 @@ pause(0.001)
 	
 #excitations
 figure()
-title("data vs points")
+title(shortname)
 xlabel('Data point')
 ylabel('Excitations')
 # shade good regions
@@ -326,8 +317,8 @@ for xmin, xmax in good_data:
 for x in splits:
 	axvline(x,color='red')
 for (d,t) in zip(ldata,cycles):
-	plot(d[:,3], label=str(t) + "L")
-	plot(d[:,4], label=str(t) + "R")
+	plot(d[:,3], '.', label=str(t) + "L")
+	plot(d[:,4], '.', label=str(t) + "R")
 legend(loc=0)
 pause(0.001)
 
@@ -335,7 +326,7 @@ pause(0.001)
 
 # correct freq vs time	
 figure()
-title("data vs time")
+title(shortname)
 xlabel('Time /s')
 ylabel('Frequency /Hz')
 for (d,t) in zip(cdata,cycles):
@@ -375,7 +366,8 @@ Time infos:
 t0 = {:.2f} s
 Run duration = {:.2f} s
 Meas. time = {:.2f} s
-Meas. points = {}"""
+Meas. points = {}
+"""
 out = fmt.format(t0, max(t)-min(t), len(t)*t0, len(t))
 filo.write(out)
 print(out)
@@ -491,23 +483,51 @@ for i, lock in enumerate(locks):
 	conds[i]['Err/Hz'] = mErr
 
 	# read sidebands data
-	if args.lattice_l and len(sbdata)>0:
+	if args.lattice_l and args.sbfile:
+		# old code to read directly sideband data
+#		sb = []
+#		for sbf in args.sbfile:
+#
+#		# encoding =None avoid a warning
+#		# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+#		try:
+#			temp = genfromtxt(sbf, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(4,11)}, encoding=None, deletechars=set())
+#			sb += [temp]
+#		except:
+#			print('WARNING: No sideband data found.')
+#		
+#		if len(sb)>1:
+#			sbdata =concatenate(sb, axis=0)
+#		else:
+#			sbdata = array(sb)
+		
+		# new code: read fit result
+		#try:
+		sbfit = genfromtxt(args.sbfile, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(0,5)}, encoding=None, deletechars=set())
+		#except:
+		#	print('WARNING: No sideband fit found.')
+		sbfit = atleast_1d(sbfit)		
+		
+
 		# chose the only tag or the corresponding tag
 		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
-
-		# use only data with the right l
-		sb = sbdata[where(sbdata['l/mV'] == lattice_l)] #will need to interpolate
-		
-		
 		conds[i]['l/mV'] = lattice_l
 		
 		
-		if len(sb)>0:
-			conds[i]['D/Er'] = sb['D/Er'].mean()
-			conds[i]['Tz/K'] = sb['Tz/K'].mean()	
-			conds[i]['Tr/K'] = sb['Tr/K'].mean()
-		else:
-			print("WARNING: sideband tag not found")
+		if size(sbfit)>0:
+			D = sbfit['k']*lattice_l
+			Tz = sbfit['Az']*D+sbfit['Bz']*D**2	
+			Tr = sbfit['Ar']*D+sbfit['Br']*D**2
+			
+			# convert in K
+			Tz = Tz*Er/kB
+			Tr = Tr*Er/kB			
+
+			# mean convert to ufloat (from array of ufloat) and is robust  in case more fit results are given
+			conds[i]['D/Er'] = D.mean()
+			conds[i]['Tz/K'] = Tz.mean()	
+			conds[i]['Tr/K'] = Tr.mean()
+	
 		
 			
 
@@ -538,7 +558,7 @@ for data,what in zip(pdata, names):
 # plot
 # mean freq
 figure()
-title("Freq")
+title(shortname + " - Freq")
 xlabel('Time /s')
 ylabel('Frequency /Hz')
 for data,what in zip(pdata, names):
@@ -546,9 +566,10 @@ for data,what in zip(pdata, names):
 legend(loc=0)
 pause(0.001)
 
+
 # Bsplit
 figure()
-title("Bsplit")
+title(shortname + " - Bsplit")
 xlabel('Time /s')
 ylabel('Frequency /Hz')
 for data,what in zip(pdata, names):
@@ -558,7 +579,7 @@ pause(0.001)
 
 # Bsplit allan
 figure()
-title("Bsplit")
+title(shortname + " - Bsplit")
 xlabel('Tau /s')
 ylabel('Allan dev. /Hz')
 for data,what in zip(pBdev, names):
@@ -569,7 +590,7 @@ pause(0.001)
 
 # Num allan
 figure()
-title("Natoms")
+title(shortname + " - Natoms")
 xlabel('Tau /s')
 ylabel('Allan dev. /mV')
 for data,what in zip(pNdev, names):
@@ -610,7 +631,7 @@ if len(locks) > 1:
 
 
 		figure()
-		title("Diff. Shift " + diffname)
+		title(shortname + " - Diff. Shift " + diffname)
 		xlabel('Approx data point')
 		ylabel('Rel Frequency Diff.')
 		plot((t-epoch0)/t0, diff_rel, label=diffname)
@@ -658,7 +679,7 @@ if len(locks) > 1:
 		a = mean(white)	
 
 		figure()
-		title("Interl. Stability " + diffname)
+		title(shortname + " - Interl. Stability " + diffname)
 		xlabel('Tau /s')
 		ylabel('Allan Dev.')
 		loglog(taufit, a*taufit**-0.5, "r-", label = "White")
@@ -792,10 +813,90 @@ for i, lock in enumerate(locks):
 		
 
 
+# look for room temoperature data
+if args.Troom:
+	startdate = datetime.date.fromtimestamp(min(t))
+	stopdate = datetime.date.fromtimestamp(max(t))
+	step = datetime.timedelta(days=1)
+	tfiles = []
+	x = startdate
+	while x <= stopdate:
+		tfiles += [args.Tdir + x.isoformat() + ".dat"]
+		x += step
+	#print tfiles
+
+	# get my tinetrvals blocks a sstart stop
+	#Tvals = ti.array2intervals(t, tgap=30., tblock=30.)
+	# for now, rather than importing tintervals here is array2intervals
+	def array2intervals(t, tgap=1., tblock=0.):
+		""" Calculate from an array of timetags t a 2-d array in the form (start,stop),
+	including gaps > tgap and removing intervals < tblock
+	"""
+		t2 = roll(t,1)
+		t3 = roll(t,-1)
+		tstarts = t[abs(t-t2) > tgap]
+		tstops = t[abs(t-t3) > tgap]
+
+		mask = (tstops - tstarts) >= tblock
+		tstarts = tstarts[mask]
+		tstops = tstops[mask]
+
+		out = column_stack((tstarts, tstops))
+		return out	
+
+	Tvals = array2intervals(t, tgap=90., tblock=90.)
+	timesT = []
+	minT = []
+	maxT = []
+
+
+	# calculate temperture spread
+	for f in tfiles:
+		if os.path.isfile(f):
+			tdata = genfromtxt(f, skip_footer=1)
+			# only loook for temperature in the (start, stop) ranges
+			for mint, maxt in Tvals:
+				times = tdata[:,0]
+		
+		
+				T = array(tdata[(times > mint) & (times < maxt),1:])
+				times2 = array(times[(times > mint) & (times < maxt)])
+		
+				timesT += [times2]
+				minT += [T.min(axis=1)]
+				maxT += [T.max(axis=1)]
+	
+				check = maxt-max(times2)
+				if check > 180.:
+					print('WARNING: Temperature data from {} not up to date up to {:.1f} s!'.format(os.path.basename(f), check))				
+
+
+	if len(timesT) >0:
+		timesT2 = concatenate(timesT, axis=0)
+		minT = concatenate(minT, axis=0)
+		maxT = concatenate(maxT, axis=0)
+
+		T = 0.5*(minT+maxT)
+		uncT = (maxT - minT)/sqrt(12.)
+
+		
+		# take the average temperature
+		# note that the mean of the uncertainties is also correct, assuming uniform averaging in time and correlated uncertainties
+		mT = mean(T)
+		uT = mean(uncT)
+		mTroom = ufloat(mT, uT)
+
+		for i, lock in enumerate(locks):
+			conds[i]['Troom/*C'] = mTroom
+	else:
+		print('WARNING: No correpsonding temperature data found.')
+
+
+
 
 
 # save data to the new .dat file
-condkeys = ['Exc', 'Num/mV', 'Bsplit/Hz', 'Err/Hz', 'D/Er', 'Tz/K', 'Tr/K', 'l/mV', 'f/MHz', 'Toven/*C', 'trabi/ms', 'faom/Hz', 'dcoeff']
+condkeys = ['Exc', 'Num/mV', 'Bsplit/Hz', 'Err/Hz', 'D/Er', 'Tz/K', 'Tr/K', 'l/mV', 'f/MHz', 'Troom/*C', 'Toven/*C', 'trabi/ms', 'faom/Hz', 'dcoeff']
 reskeys = ['Diff/Hz','relDiff','white','totTime/s']
 
 
