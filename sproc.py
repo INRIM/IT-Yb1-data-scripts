@@ -150,9 +150,10 @@ filo.write(" ".join(command))
 filo.write("\n\n")	
 
 filo.write(os.path.relpath(subdir,'../../..'))
-filo.write("\n\n")	
+filo.write("\n\n")     
 
-filo.write("Data generated with the above command, results in the above folder on: " + str(datetime.datetime.now()) + "\n")		
+filo.write("Data generated with the above command, results in the above folder on: " + str(datetime.datetime.now()) + "\n") 
+
 
 
 
@@ -371,7 +372,7 @@ Run duration = {:.2f} s
 Meas. time = {:.2f} s
 Meas. points = {}"""
 out = fmt.format(t0, max(t)-min(t), len(t)*t0, len(t))
-filo.write(out + '\n')
+filo.write(out+'\n')
 print(out)
 
 
@@ -384,7 +385,7 @@ stds = [std(d, axis=0)/sqrt(len(d)-1) for d in cdata]
 out = """
 Averages per cycle
 #Cycle\tExc     \tNum /mV \tExcL    \tExcR    \tNumL /mV \tNumR /mV \tErr /Hz \tGood points"""
-filo.write(out + '\n')
+filo.write(out+'\n')
 print(out)
 fmt = "{}" + "\t{:S}"*6 + "\t{:.2uS}\t{:.2f}"
 
@@ -503,20 +504,24 @@ for i, lock in enumerate(locks):
 #		else:
 #			sbdata = array(sb)
 		
-		# new code: read fit result
-		#try:
-		sbfit = genfromtxt(args.sbfile, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(0,5)}, encoding=None, deletechars=set())
-		#except:
-		#	print('WARNING: No sideband fit found.')
-		sbfit = atleast_1d(sbfit)		
-		
-
 		# chose the only tag or the corresponding tag
 		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
 		conds[i]['l/mV'] = lattice_l
+
+		# new code: read fit result
+		try:
+			sbfit = genfromtxt(args.sbfile, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(0,5)}, encoding=None, deletechars=set())
+			filefound = True
+		except:
+			print('WARNING: No sideband fit found.')
+			filefound = False
+		
+
+
 		
 		
-		if size(sbfit)>0:
+		if filefound and size(sbfit)>0:
+			sbfit = atleast_1d(sbfit)		
 			D = sbfit['k']*lattice_l
 			Tz = sbfit['Az']*D+sbfit['Bz']*D**2	
 			Tr = sbfit['Ar']*D+sbfit['Br']*D**2
@@ -867,10 +872,9 @@ if args.Troom:
 				timesT += [times2]
 				minT += [T.min(axis=1)]
 				maxT += [T.max(axis=1)]
-	
-				check = maxt-max(times2)
-				if check > 180.:
-					print('WARNING: Temperature data from {} not up to date up to {:.1f} s!'.format(os.path.basename(f), check))				
+				
+				
+			
 
 
 	if len(timesT) >0:
@@ -890,6 +894,11 @@ if args.Troom:
 
 		for i, lock in enumerate(locks):
 			conds[i]['Troom/*C'] = mTroom
+		
+		check = amax(t)-amax(timesT2)
+		if check > 180.:
+			print('WARNING: Temperature data from {} not up to date up to {:.1f} s!'.format(os.path.basename(f), check))	
+
 	else:
 		print('WARNING: No correpsonding temperature data found.')
 
