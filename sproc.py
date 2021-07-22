@@ -149,7 +149,10 @@ filo2 = open(log2name, "w")
 filo.write(" ".join(command))
 filo.write("\n\n")	
 
-filo.write("Data generated with the above command line on: " + str(datetime.datetime.now()) + "\n")		
+filo.write(os.path.relpath(subdir,'../../..'))
+filo.write("\n\n")	
+
+filo.write("Data generated with the above command, results in the above folder on: " + str(datetime.datetime.now()) + "\n")		
 
 
 
@@ -366,10 +369,9 @@ Time infos:
 t0 = {:.2f} s
 Run duration = {:.2f} s
 Meas. time = {:.2f} s
-Meas. points = {}
-"""
+Meas. points = {}"""
 out = fmt.format(t0, max(t)-min(t), len(t)*t0, len(t))
-filo.write(out)
+filo.write(out + '\n')
 print(out)
 
 
@@ -382,7 +384,7 @@ stds = [std(d, axis=0)/sqrt(len(d)-1) for d in cdata]
 out = """
 Averages per cycle
 #Cycle\tExc     \tNum /mV \tExcL    \tExcR    \tNumL /mV \tNumR /mV \tErr /Hz \tGood points"""
-filo.write(out)
+filo.write(out + '\n')
 print(out)
 fmt = "{}" + "\t{:S}"*6 + "\t{:.2uS}\t{:.2f}"
 
