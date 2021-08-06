@@ -619,137 +619,138 @@ if len(locks) > 1:
 	# gets a new functions to interpolate the frequencies
 	pff = [interp1d(d[:,0],d[:,3]) for d in pdata]
 
+	for j in arange(len(locks))[:-1]:
+		j = -1-j
+		for i in arange(len(locks))[:j]:
 
-	for i in arange(len(locks))[:-1]:
-
-		# calculate the frequencies interpoalting
-		diffe = pff[i](t) - pff[-1](t)
-		diff_rel = diffe/fYb
-
-
-		data = column_stack((t,diffe, diff_rel))
-		diffname = "{}-{}".format(names[i],names[-1])
-	
-	
-		fmt="%.2f\t%.6f\t%e"
-		header = "Time\tdiff\trel_diff"
-	
-		savetxt(basename + "_proc_diff_" + diffname + ".dat" , data, fmt=fmt, header = header)
+			# calculate the frequencies interpoalting
+			diffe = pff[i](t) - pff[j](t)
+			diff_rel = diffe/fYb
 
 
-		figure()
-		title(shortname + " - Diff. Shift " + diffname)
-		xlabel('Approx data point')
-		ylabel('Rel Frequency Diff.')
-		plot((t-epoch0)/t0, diff_rel, label=diffname)
-		legend(loc=0)
-		pause(0.001)
-	
-		# calc allan deviation using allantools!	
-		tau2, adev, aderr, adn = allantools.oadev(diff_rel, data_type='freq', rate=rate, taus='octave')	
-		taut2, tadev, tderr, tdn = allantools.totdev(diff_rel, data_type='freq', rate=rate, taus=taut)
-	
-		# allantools octave put a point too much
-		tau2 = tau2[:-1]
-		adev = adev[:-1]
-		aderr = aderr[:-1]
-		adn = adn[:-1]	
-
-
-		# calc uncertainty
-		# https://tf.boulder.nist.gov/general/pdf/666.pdf
-		N = adn
-		m = tau2/t0	
-		edf = (3*(N-1)/(2*m)-2*(N-2)/N)*4*m**2/(4*m**2+5)
-		
-
-
-		#https://tf.boulder.nist.gov/general/pdf/666.pdf
-		admax = adev * (edf/scipy.stats.chi2.ppf(0.1, edf))**.5
-		admin = adev * (edf/scipy.stats.chi2.ppf(0.9, edf))**.5
-
-
-		taufit = append(taut2, tottime)	
-
-
-		data_out = column_stack((tau2, adev, aderr))
-		fmt="%.2f\t%.3e\t%.3e"
-		header = "Tau /s\toadev\toadev_unc"
-		savetxt(basename + "_proc_diff_" + diffname + "_adev.dat", data_out, fmt=fmt, header = header)
-	
-		# simple fit
-		white = adev*tau2**0.5
-		#if len(white) > 10.:			
-		#	white = white[where((tau2>10.) & (tau2<tottime/8.))]
-		if len(white) > 4.:			
-			white = white[where((tau2>10.) & (tau2<tottime/8.))]
-		a = mean(white)	
-
-		figure()
-		title(shortname + " - Interl. Stability " + diffname)
-		xlabel('Tau /s')
-		ylabel('Allan Dev.')
-		loglog(taufit, a*taufit**-0.5, "r-", label = "White")
-		loglog(taut2, tadev, "-", label = "Total")	
-		#loglog(tau2, adev, "o", label = "Overl.")
-		errorbar(tau2, adev,  yerr = [adev-admin, admax-adev], fmt='o')
-		#plot(tau2, adev, fmt='.', ecolor='g')
-		grid(which="both")
-		legend(loc=0)
-		pause(0.001)
-
-		whiteunc = a*tottime**-0.5
-
-		udiff_rel = ufloat(mean(diff_rel), whiteunc)
-		udiffe = udiff_rel*fYb
-
-	
-
-		# print the final message
-		
-
-
-
-		fmt = """
-#Interleaved {} - {}
-Difference = {:.2uS} Hz
-Relative Diff = {:.2uS}
-
-White noise = {:.02} at 1 s fitted at {:.1f} s.
-"""
-	
-		out = fmt.format(names[i],names[-1],udiffe,udiff_rel, a, tottime)
-		print(out)
-		filo.write(out + '\n')
-	
-		res[i]['Diff/Hz'] = udiffe
-		res[i]['relDiff'] = udiff_rel
-		res[i]['white'] = a
-		res[i]['totTime/s'] = tottime
-		
-		res[-1]['Diff/Hz'] = 0.
-		res[-1]['relDiff'] = 0.
-		res[-1]['white'] = a
-		res[-1]['totTime/s'] = tottime
+			data = column_stack((t,diffe, diff_rel))
+			diffname = "{}-{}".format(names[i],names[j])
 		
 		
-		if args.density:
-			# is density if made in similar conditions
-			if(conds[i]['l/mV'] == conds[-1]['l/mV'] and conds[i]['f/MHz'] == conds[-1]['f/MHz'] and conds[i]['trabi/ms'] == conds[-1]['trabi/ms']):
+			fmt="%.2f\t%.6f\t%e"
+			header = "Time\tdiff\trel_diff"
+		
+			savetxt(basename + "_proc_diff_" + diffname + ".dat" , data, fmt=fmt, header = header)
+
+
+			figure()
+			title(shortname + " - Diff. Shift " + diffname)
+			xlabel('Approx data point')
+			ylabel('Rel Frequency Diff.')
+			plot((t-epoch0)/t0, diff_rel, label=diffname)
+			legend(loc=0)
+			pause(0.001)
+		
+			# calc allan deviation using allantools!	
+			tau2, adev, aderr, adn = allantools.oadev(diff_rel, data_type='freq', rate=rate, taus='octave')	
+			taut2, tadev, tderr, tdn = allantools.totdev(diff_rel, data_type='freq', rate=rate, taus=taut)
+		
+			# allantools octave put a point too much
+			tau2 = tau2[:-1]
+			adev = adev[:-1]
+			aderr = aderr[:-1]
+			adn = adn[:-1]	
+
+
+			# calc uncertainty
+			# https://tf.boulder.nist.gov/general/pdf/666.pdf
+			N = adn
+			m = tau2/t0	
+			edf = (3*(N-1)/(2*m)-2*(N-2)/N)*4*m**2/(4*m**2+5)
 			
-				
-				fmt = """Density shift = {:.2uS}     (at N0 = {} mV)
-				"""
-				dcoeff =  udiff_rel/(savenum[i]-savenum[-1])*N0
-				out = fmt.format(dcoeff, N0)
-				print(out)
-				filo.write(out + '\n')
-				
-						
-							
-				conds[i]['dcoeff'] = dcoeff
 
-				conds[-1]['dcoeff'] = dcoeff # TODO: handle multiple cycles
+
+			#https://tf.boulder.nist.gov/general/pdf/666.pdf
+			admax = adev * (edf/scipy.stats.chi2.ppf(0.1, edf))**.5
+			admin = adev * (edf/scipy.stats.chi2.ppf(0.9, edf))**.5
+
+
+			taufit = append(taut2, tottime)	
+
+
+			data_out = column_stack((tau2, adev, aderr))
+			fmt="%.2f\t%.3e\t%.3e"
+			header = "Tau /s\toadev\toadev_unc"
+			savetxt(basename + "_proc_diff_" + diffname + "_adev.dat", data_out, fmt=fmt, header = header)
+		
+			# simple fit
+			white = adev*tau2**0.5
+			#if len(white) > 10.:			
+			#	white = white[where((tau2>10.) & (tau2<tottime/8.))]
+			if len(white) > 4.:			
+				white = white[where((tau2>10.) & (tau2<tottime/8.))]
+			a = mean(white)	
+
+			figure()
+			title(shortname + " - Interl. Stability " + diffname)
+			xlabel('Tau /s')
+			ylabel('Allan Dev.')
+			loglog(taufit, a*taufit**-0.5, "r-", label = "White")
+			loglog(taut2, tadev, "-", label = "Total")	
+			#loglog(tau2, adev, "o", label = "Overl.")
+			errorbar(tau2, adev,  yerr = [adev-admin, admax-adev], fmt='o')
+			#plot(tau2, adev, fmt='.', ecolor='g')
+			grid(which="both")
+			legend(loc=0)
+			pause(0.001)
+
+			whiteunc = a*tottime**-0.5
+
+			udiff_rel = ufloat(mean(diff_rel), whiteunc)
+			udiffe = udiff_rel*fYb
+
+		
+
+			# print the final message
+			
+
+
+
+			fmt = """
+	#Interleaved {} - {}
+	Difference = {:.2uS} Hz
+	Relative Diff = {:.2uS}
+
+	White noise = {:.02} at 1 s fitted at {:.1f} s.
+	"""
+		
+			out = fmt.format(names[i],names[j],udiffe,udiff_rel, a, tottime)
+			print(out)
+			filo.write(out + '\n')
+		
+			res[i]['Diff/Hz'] = udiffe
+			res[i]['relDiff'] = udiff_rel
+			res[i]['white'] = a
+			res[i]['totTime/s'] = tottime
+			
+			res[-1]['Diff/Hz'] = 0.
+			res[-1]['relDiff'] = 0.
+			res[-1]['white'] = a
+			res[-1]['totTime/s'] = tottime
+			
+			
+			if args.density:
+				# is density if made in similar conditions
+				if(conds[i]['l/mV'] == conds[j]['l/mV'] and conds[i]['f/MHz'] == conds[j]['f/MHz'] and conds[i]['trabi/ms'] == conds[j]['trabi/ms']):
+				
+					
+					fmt = """Density shift = {:.2uS}     (at N0 = {} mV)
+					"""
+					dcoeff =  udiff_rel/(savenum[i]-savenum[j])*N0
+					out = fmt.format(dcoeff, N0)
+					print(out)
+					filo.write(out + '\n')
+					
+							
+								
+					conds[i]['dcoeff'] = dcoeff
+
+					conds[j]['dcoeff'] = dcoeff # TODO: handle multiple cycles
 				
 
 
