@@ -869,10 +869,11 @@ if args.Troom:
 		
 				T = array(tdata[(times > mint) & (times < maxt),1:])
 				times2 = array(times[(times > mint) & (times < maxt)])
-		
-				timesT += [times2]
-				minT += [T.min(axis=1)]
-				maxT += [T.max(axis=1)]
+				
+				if times2.size > 0:
+					timesT += [times2]
+					minT += [T.min(axis=1)]
+					maxT += [T.max(axis=1)]
 				
 				
 			
@@ -901,7 +902,7 @@ if args.Troom:
 			print('WARNING: Temperature data from {} not up to date up to {:.1f} s!'.format(os.path.basename(f), check))	
 
 	else:
-		print('WARNING: No correpsonding temperature data found.')
+		print('WARNING: No corresponding temperature data found.')
 
 
 
