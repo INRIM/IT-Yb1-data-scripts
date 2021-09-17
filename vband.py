@@ -485,9 +485,15 @@ if __name__ == '__main__':
 		for line in comments:
 			ll += re.findall(r'l\s?=\s?(\".*?\"|\S*)', line) 
 			ss += re.findall(r's\s?=\s?(\".*?\"|\S*)', line) 
-			
-		l = ','.join(ll)
-		spin = ','.join(ss)
+		
+		if ll:	
+			l = ','.join(ll)
+		else:
+			l = '-'
+		if ss:
+			spin = ','.join(ss)
+		else:
+			spin = '-'
 		
 		tag = args.tag[min(i, len(args.tag)-1)]
 		
