@@ -71,6 +71,7 @@ parser.add_argument('--lattice_l',  type=float, nargs='+', help='lattice depth s
 parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequency as deviation from 394 798 000 MHz')
 parser.add_argument('--Toven',  type=float, nargs='+', help='oven temperature in degree Celsius')
 parser.add_argument('--trabi',  type=float, nargs='+', help='rabi time in ms')
+parser.add_argument('--Voffsetxp',  type=float, nargs='+', help='Voltage offset along the xp direction.')
 parser.add_argument('--Troom', action='store_true', help='Load room temperature data')
 parser.add_argument('--Tdir',  help='Folder of temperature data', default="../../Temperature Data/")
 
@@ -208,7 +209,12 @@ for f in args.infile:
 			temp = re.findall("# Toven\s*=\s*([\d.,]+[\d.])", line)
 			if temp:
 				args.Toven = [float(x) for x in temp[0].split(',')]
-	
+
+		if not args.Voffsetxp:
+			temp = re.findall("# Voffset_xp\s*=\s*([\d.,]+[\d.])", line)
+			if temp:
+				args.Voffsetxp = [float(x) for x in temp[0].split(','
+		
 	
 	
 	# I am done with the files, lets close them
@@ -548,6 +554,10 @@ for i, lock in enumerate(locks):
 
 	if args.Toven:
 		conds[i]['Toven/*C'] = args.Toven[min(i, len(args.Toven)-1)]
+
+	if args.Voffsetxp:
+		conds[i]['Voffsetxp/V'] = args.Voffsetxp[min(i, len(args.Toven)-1)]
+
 
 
 	conds[i]['faom/Hz'] = faom
@@ -909,7 +919,7 @@ if args.Troom:
 
 
 # save data to the new .dat file
-condkeys = ['Exc', 'Num/mV', 'Bsplit/Hz', 'Err/Hz', 'D/Er', 'Tz/K', 'Tr/K', 'l/mV', 'f/MHz', 'Troom/*C', 'Toven/*C', 'trabi/ms', 'faom/Hz', 'dcoeff']
+condkeys = ['Exc', 'Num/mV', 'Bsplit/Hz', 'Err/Hz', 'D/Er', 'Tz/K', 'Tr/K', 'l/mV', 'f/MHz', 'Troom/*C', 'Toven/*C', 'trabi/ms', 'Voffsetxp/V', 'faom/Hz', 'dcoeff']
 reskeys = ['Diff/Hz','relDiff','white','totTime/s']
 
 
