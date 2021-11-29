@@ -213,7 +213,7 @@ for f in args.infile:
 		if not args.Voffsetxp:
 			temp = re.findall("# Voffset_xp\s*=\s*([\d.,]+[\d.])", line)
 			if temp:
-				args.Voffsetxp = [float(x) for x in temp[0].split(','
+				args.Voffsetxp = [float(x) for x in temp[0].split(',')]
 		
 	
 	
