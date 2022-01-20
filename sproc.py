@@ -75,7 +75,7 @@ parser.add_argument('--Voffsetxp',  type=float, nargs='+', help='Voltage offset 
 parser.add_argument('--Troom', action='store_true', help='Load room temperature data')
 parser.add_argument('--Tdir',  help='Folder of temperature data', default="../../Temperature Data/")
 
-parser.add_argument('--sbfile',  help='sidebands file or files (used to automatically populate lattice info)', default='./Vbands/all-fit.dat')
+parser.add_argument('--sbfile',  help='sidebands file (used to automatically populate lattice info)', default='./Vbands/all-fit.dat')
 parser.add_argument('--dfile',  nargs='*', help='density file or files. Automatically strip down to the first 19 chars: num + date + hour.', default=None)
 
 
