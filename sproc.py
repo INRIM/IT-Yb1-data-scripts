@@ -993,7 +993,7 @@ filo2.write("#" + "\t".join(tit) + "\n")
 for i, lock in enumerate(locks):
 	# note i wrote zero for the difference of the low lock
 	# the get method on the conds dictionary default to None
-	out = [shortname, names[i]] + [conds[i].get(x, None) for x in condkeys] + [res[i].get(x, None) for x in reskeys] + [",".join(files)]
+	out = [shortname, names[i]] + [conds[i].get(x, nan) for x in condkeys] + [res[i].get(x, nan) for x in reskeys] + [",".join(files)]
 	
 	# if the values in the conds dictionary are sepcified or not change the format
 	
