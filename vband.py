@@ -75,7 +75,7 @@ if __name__ == '__main__':
 	parser.add_argument('--fac',  type=float, help='Quality of integration parameter', default=10)
 
 	parser.add_argument('--nofit', action='store_true', help='Do not fit for all processed files')
-	parser.add_argument('--Tzquad', action='store_true', help='Fit a quadratic Tz vs D')
+	parser.add_argument('--Tzlin', action='store_true', help='Fit a linear Tz vs D')
 	parser.add_argument('--Trlin', action='store_true', help='Fit a linear Tr vs D')
 	#parser.add_argument('--Nfit', action='store_true', help='Show N vs U for processed files')
 
@@ -712,7 +712,7 @@ if __name__ == '__main__':
 		
 		eps = 1e-6
 		
-		if args.Tzquad:
+		if not args.Tzlin:
 			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.001])
 		else:	
 			zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.], bounds=([0,-eps],[10., eps]))
@@ -727,7 +727,7 @@ if __name__ == '__main__':
 		
 		print('Tfit\n')
 		print('Az = {:.2uS}'.format(z_par[0]))
-		if args.Tzquad:
+		if not args.Tzlin:
 			print('Bz = {:.2uS}'.format(z_par[1]))
 		print('Ar = {:.2uS}'.format(r_par[0]))
 		if not args.Trlin:
