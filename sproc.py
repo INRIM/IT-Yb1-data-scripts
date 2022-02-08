@@ -75,7 +75,7 @@ parser.add_argument('--Voffsetxp',  type=float, nargs='+', help='Voltage offset 
 parser.add_argument('--Troom', action='store_true', help='Load room temperature data')
 parser.add_argument('--Tdir',  help='Folder of temperature data', default="../../Temperature Data/")
 
-parser.add_argument('--sbfile',  help='sidebands file (used to automatically populate lattice info)', default='./Vbands/all-fit.dat')
+parser.add_argument('--sbfile',  nargs='*', help='sidebands file (used to automatically populate lattice info)', default=['./Vbands/all.dat'])
 parser.add_argument('--dfile',  nargs='*', help='density file or files. Automatically strip down to the first 19 chars: num + date + hour.', default=None)
 
 
@@ -147,7 +147,7 @@ log2name = basename + ".dat"
 filo = open(logname, "w")
 filo2 = open(log2name, "w")
 
-filo.write(" ".join(command))
+filo.write("run " + " ".join(command))
 filo.write("\n\n")	
 
 filo.write(os.path.relpath(subdir,'../../..'))
@@ -494,6 +494,65 @@ for i, lock in enumerate(locks):
 	# read sidebands data
 	if args.lattice_l and args.sbfile:
 		# old code to read directly sideband data
+		sb = []
+		for sbf in args.sbfile:
+
+			# encoding =None avoid a warning
+			# deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+			try:
+				temp = genfromtxt(sbf, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(4,11)}, encoding=None, deletechars=set())
+				sb += [temp]
+			except:
+				print('WARNING: No sideband data found.')
+			
+			if len(sb)>1:
+				sbdata =concatenate(sb, axis=0)
+			else:
+				sbdata = array(sb)
+
+		# chose the only tag or the corresponding tag
+		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
+		conds[i]['l/mV'] = lattice_l
+
+
+
+		# get unique l
+
+		unique_l = unique(sbdata['l/mV'])
+
+		to_extract = ['D/Er', 'Tz/K', 'Tr/K']
+		for par in to_extract:
+			sbl = sbdata['l/mV']
+			var = unumpy.nominal_values(sbdata[par])
+			unc = unumpy.std_devs(sbdata[par])
+
+
+			# before interpolation I need to average different measurement
+			# I do not think it is correct to reduce the uncertainty by taking averages, so the uncertainty is also the mean uncertainty!
+			# Note that uncertainti in D, Tz and Tr is not really used
+			mvar, munc = [], []
+			for l in unique_l:
+				x = var[where(sbl == l)]
+				m = mean(x)
+				s = std(x)/sqrt(len(x))*2 # *2 account for low number of points without putting exact t-student values
+				
+
+				mvar += [m]
+				munc += [sqrt(mean(unc[where(sbl == l)])**2 + s**2)] # final unc is mean of unc summed in quadrature with stddev
+
+			mvar, munc = array(mvar), array(munc)
+
+
+			# interpolate!
+			# if the value is in the table, this is just the average 
+			# otherwise give an interpolation of both value and uncertainty
+			ivar = interp1d(unique_l, mvar, kind='linear', bounds_error=False, fill_value='extrapolate')
+			iunc = interp1d(unique_l, munc, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+			conds[i][par] = ufloat(ivar(lattice_l), iunc(lattice_l))
+
+
+		# old code to read directly sideband data
 #		sb = []
 #		for sbf in args.sbfile:
 #
@@ -510,36 +569,39 @@ for i, lock in enumerate(locks):
 #		else:
 #			sbdata = array(sb)
 		
-		# chose the only tag or the corresponding tag
-		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
-		conds[i]['l/mV'] = lattice_l
+		# code suing fit
+		# no robust enought to problems on sidebands data
 
-		# new code: read fit result
-		try:
-			sbfit = genfromtxt(args.sbfile, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(0,5)}, encoding=None, deletechars=set())
-			filefound = True
-		except:
-			print('WARNING: No sideband fit found.')
-			filefound = False
+		# # chose the only tag or the corresponding tag
+		# lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
+		# conds[i]['l/mV'] = lattice_l
+
+		# # new code: read fit result
+		# try:
+		# 	sbfit = genfromtxt(args.sbfile, names=True, dtype=None, converters={i: ufloat_fromstr for i in arange(0,5)}, encoding=None, deletechars=set())
+		# 	filefound = True
+		# except:
+		# 	print('WARNING: No sideband fit found.')
+		# 	filefound = False
 		
 
 
 		
 		
-		if filefound and size(sbfit)>0:
-			sbfit = atleast_1d(sbfit)		
-			D = sbfit['k']*lattice_l
-			Tz = sbfit['Az']*D+sbfit['Bz']*D**2	
-			Tr = sbfit['Ar']*D+sbfit['Br']*D**2
+		# if filefound and size(sbfit)>0:
+		# 	sbfit = atleast_1d(sbfit)		
+		# 	D = sbfit['k']*lattice_l
+		# 	Tz = sbfit['Az']*D+sbfit['Bz']*D**2	
+		# 	Tr = sbfit['Ar']*D+sbfit['Br']*D**2
 			
-			# convert in K
-			Tz = Tz*Er/kB
-			Tr = Tr*Er/kB			
+		# 	# convert in K
+		# 	Tz = Tz*Er/kB
+		# 	Tr = Tr*Er/kB			
 
-			# mean convert to ufloat (from array of ufloat) and is robust  in case more fit results are given
-			conds[i]['D/Er'] = D.mean()
-			conds[i]['Tz/K'] = Tz.mean()	
-			conds[i]['Tr/K'] = Tr.mean()
+		# 	# mean convert to ufloat (from array of ufloat) and is robust  in case more fit results are given
+		# 	conds[i]['D/Er'] = D.mean()
+		# 	conds[i]['Tz/K'] = Tz.mean()	
+		# 	conds[i]['Tr/K'] = Tr.mean()
 	
 		
 			
