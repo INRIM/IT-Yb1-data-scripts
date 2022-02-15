@@ -516,40 +516,44 @@ for i, lock in enumerate(locks):
 
 
 
-		# get unique l
+		
 
-		unique_l = unique(sbdata['l/mV'])
+		
 
-		to_extract = ['D/Er', 'Tz/K', 'Tr/K']
-		for par in to_extract:
-			sbl = sbdata['l/mV']
-			var = unumpy.nominal_values(sbdata[par])
-			unc = unumpy.std_devs(sbdata[par])
+		if size(sbdata) > 2:
+			# get unique l
+			unique_l = unique(sbdata['l/mV'])
 
-
-			# before interpolation I need to average different measurement
-			# I do not think it is correct to reduce the uncertainty by taking averages, so the uncertainty is also the mean uncertainty!
-			# Note that uncertainti in D, Tz and Tr is not really used
-			mvar, munc = [], []
-			for l in unique_l:
-				x = var[where(sbl == l)]
-				m = mean(x)
-				s = std(x)/sqrt(len(x))*2 # *2 account for low number of points without putting exact t-student values
-				
-
-				mvar += [m]
-				munc += [sqrt(mean(unc[where(sbl == l)])**2 + s**2)] # final unc is mean of unc summed in quadrature with stddev
-
-			mvar, munc = array(mvar), array(munc)
+			to_extract = ['D/Er', 'Tz/K', 'Tr/K']
+			for par in to_extract:
+				sbl = sbdata['l/mV']
+				var = unumpy.nominal_values(sbdata[par])
+				unc = unumpy.std_devs(sbdata[par])
 
 
-			# interpolate!
-			# if the value is in the table, this is just the average 
-			# otherwise give an interpolation of both value and uncertainty
-			ivar = interp1d(unique_l, mvar, kind='linear', bounds_error=False, fill_value='extrapolate')
-			iunc = interp1d(unique_l, munc, kind='linear', bounds_error=False, fill_value='extrapolate')
+				# before interpolation I need to average different measurement
+				# I do not think it is correct to reduce the uncertainty by taking averages, so the uncertainty is also the mean uncertainty!
+				# Note that uncertainti in D, Tz and Tr is not really used
+				mvar, munc = [], []
+				for l in unique_l:
+					x = var[where(sbl == l)]
+					m = mean(x)
+					s = std(x)/sqrt(len(x))*2 # *2 account for low number of points without putting exact t-student values
+					
 
-			conds[i][par] = ufloat(ivar(lattice_l), iunc(lattice_l))
+					mvar += [m]
+					munc += [sqrt(mean(unc[where(sbl == l)])**2 + s**2)] # final unc is mean of unc summed in quadrature with stddev
+
+				mvar, munc = array(mvar), array(munc)
+
+
+				# interpolate!
+				# if the value is in the table, this is just the average 
+				# otherwise give an interpolation of both value and uncertainty
+				ivar = interp1d(unique_l, mvar, kind='linear', bounds_error=False, fill_value='extrapolate')
+				iunc = interp1d(unique_l, munc, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+				conds[i][par] = ufloat(ivar(lattice_l), iunc(lattice_l))
 
 
 		# old code to read directly sideband data
@@ -933,7 +937,7 @@ if args.Troom:
 	# calculate temperture spread
 	for f in tfiles:
 		if os.path.isfile(f):
-			tdata = genfromtxt(f, skip_footer=1)
+			tdata = genfromtxt(f, skip_footer=1, invalid_raise=False)
 			# only loook for temperature in the (start, stop) ranges
 			for mint, maxt in Tvals:
 				times = tdata[:,0]

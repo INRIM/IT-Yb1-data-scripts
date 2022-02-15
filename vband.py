@@ -87,6 +87,9 @@ if __name__ == '__main__':
 
 	if not os.path.exists(args.dir):
 		os.makedirs(args.dir)
+	figdir = os.path.join(args.dir, 'Figures')
+	if not os.path.exists(figdir):
+		os.makedirs(figdir)
 
 
 	ioff()
@@ -462,7 +465,6 @@ if __name__ == '__main__':
 	for i, fil in enumerate(args.infile):
 		basename = os.path.basename(fil.name)[:-4]
 		numname = os.path.basename(fil.name)[:3]
-		figdir = os.path.join(args.dir, 'Figures')
 		figname = os.path.join(figdir, basename+'.png')
 		txtname = os.path.join(args.dir,basename+'.txt')
 		
