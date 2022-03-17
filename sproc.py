@@ -24,6 +24,7 @@
 # SPDX-License-Identifier: MIT
 
 
+from locale import LC_TIME
 import time
 import datetime
 import os
@@ -41,7 +42,7 @@ from uncertainties.umath import *
 from uncertainties import unumpy
 
 from scipy.interpolate import interp1d
-from scipy.ndimage.filters import uniform_filter1d
+from scipy.ndimage.filters import uniform_filter1d, maximum_filter1d
 import scipy.stats
 from matplotlib.pyplot import *
 ioff()
@@ -316,7 +317,7 @@ legend(loc=0)
 figure()
 title(shortname)
 xlabel('Data point')
-ylabel('Excitations (Moving average)')
+ylabel('Excitations (Maximum of both line sides)')
 # shade good regions
 for xmin, xmax in good_data:
 	if xmin == None:
@@ -328,8 +329,9 @@ for xmin, xmax in good_data:
 for x in splits:
 	axvline(x,color='red')
 for (d,t) in zip(ldata,cycles):
-	plot(uniform_filter1d(d[:,3],1000), '-', label=str(t) + "L")
-	plot(uniform_filter1d(d[:,4],1000), '-', label=str(t) + "R")
+	plot(maximum(d[:,3],d[:,4]), '.', label=str(t))
+	#plot(uniform_filter1d(d[:,3],1000), '-', label=str(t) + "L")
+	#plot(uniform_filter1d(d[:,4],1000), '-', label=str(t) + "R")
 legend(loc=0)
 # pause(0.001)
 
@@ -354,6 +356,11 @@ tts = [d[:,0] for d in cdata]
 # this is the "average" timescale
 t = mean(tts,axis=0)
 t = t[1:-1]
+
+# hack time -> datapoints
+l_tts = [d[:,0] for d in ldata]
+l_t = mean(tts,axis=0)
+t_datapoints = arange(len(l_t))[isin(l_t,t)]
 
 
 
@@ -437,7 +444,14 @@ fmt = "{}" + "\t{:S}"*3 + "\t{:.2uS}"
 
 savenum = []
 
+# import tintervals as ti
 
+# figure()
+# title(shortname + " - Line Diff ")
+# xlabel('MJD')
+# ylabel('Rel Frequency Diff.')
+# plot(ti.mjd_from_epoch(t),uniform_filter1d((ff[2](t)-ff[0](t))/fYb,20))
+# plot(ti.mjd_from_epoch(t),uniform_filter1d((ff[3](t)-ff[1](t))/fYb,20))
 
 
 
@@ -696,6 +710,10 @@ if len(locks) > 1:
 	# gets a new functions to interpolate the frequencies
 	pff = [interp1d(d[:,0],d[:,3]) for d in pdata]
 
+
+
+
+
 	for j in arange(len(locks))[:-1]:
 		j = -1-j
 		for i in arange(len(locks))[:j]:
@@ -717,10 +735,10 @@ if len(locks) > 1:
 
 			figure()
 			title(shortname + " - Diff. Shift " + diffname)
-			xlabel('Approx data point')
+			xlabel('Data point')
 			ylabel('Rel Frequency Diff.')
-			plot((t-epoch0)/t0, diff_rel, label=diffname)
-			plot((t-epoch0)/t0, uniform_filter1d(diff_rel, 1000), label='Moving average')
+			plot(t_datapoints, diff_rel, label=diffname)
+			plot(t_datapoints, uniform_filter1d(diff_rel, 1000), label='Moving average')
 
 
 			legend(loc=0)
