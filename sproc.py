@@ -42,10 +42,10 @@ from uncertainties.umath import *
 from uncertainties import unumpy
 
 from scipy.interpolate import interp1d
-from scipy.ndimage.filters import uniform_filter1d, maximum_filter1d
+from scipy.ndimage import uniform_filter1d, maximum_filter1d
 import scipy.stats
 from matplotlib.pyplot import *
-ioff()
+ion()
 close('all')
 
 
@@ -288,7 +288,7 @@ for x in splits:
 for (d,t) in zip(ldata,cycles):
 	plot(d[:,8],label=t)
 legend(loc=0)	
-# pause(0.001)
+pause(0.001)
 
 
 # natoms
@@ -311,7 +311,7 @@ for (d,t) in zip(ldata,cycles):
 	#plot(d[:,5],label=str(t) + "L")
 	#plot(d[:,6],label=str(t) + "R")
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 	
 #excitations
 figure()
@@ -333,7 +333,7 @@ for (d,t) in zip(ldata,cycles):
 	#plot(uniform_filter1d(d[:,3],1000), '-', label=str(t) + "L")
 	#plot(uniform_filter1d(d[:,4],1000), '-', label=str(t) + "R")
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 
 
 
@@ -345,7 +345,7 @@ ylabel('Frequency /Hz')
 for (d,t) in zip(cdata,cycles):
 	plot(d[:,0]-epoch0, d[:,8],label=t)
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 
 
 #========================================
@@ -662,7 +662,7 @@ ylabel('Frequency /Hz')
 for data,what in zip(pdata, names):
 	plot(data[:,0]-epoch0, data[:,3],label=what)
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 
 
 # Bsplit
@@ -673,7 +673,7 @@ ylabel('Frequency /Hz')
 for data,what in zip(pdata, names):
 	plot(data[:,0]-epoch0, data[:,4],label=what)
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 
 # Bsplit allan
 figure()
@@ -684,7 +684,7 @@ for data,what in zip(pBdev, names):
 	loglog(data[0], data[1],label=what)
 grid(which="both")
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 
 # Num allan
 figure()
@@ -695,7 +695,7 @@ for data,what in zip(pNdev, names):
 	loglog(data[0], data[1],label=what)
 grid(which="both")
 legend(loc=0)
-# pause(0.001)
+pause(0.001)
 
 
 
@@ -735,14 +735,12 @@ if len(locks) > 1:
 
 			figure()
 			title(shortname + " - Diff. Shift " + diffname)
-			xlabel('Data point')
+			xlabel('Approx data point')
 			ylabel('Rel Frequency Diff.')
-			plot(t_datapoints, diff_rel, label=diffname)
-			plot(t_datapoints, uniform_filter1d(diff_rel, 1000), label='Moving average')
-
-
+			plot((t-epoch0)/t0, diff_rel, label=diffname)
+			plot((t-epoch0)/t0, uniform_filter1d(diff_rel,1000), label='Rolling mean')
 			legend(loc=0)
-			# pause(0.001)
+			pause(0.001)
 		
 			# calc allan deviation using allantools!	
 			tau2, adev, aderr, adn = allantools.oadev(diff_rel, data_type='freq', rate=rate, taus='octave')	
@@ -795,7 +793,7 @@ if len(locks) > 1:
 			#plot(tau2, adev, fmt='.', ecolor='g')
 			grid(which="both")
 			legend(loc=0)
-			# pause(0.001)
+			pause(0.001)
 
 			whiteunc = a*tottime**-0.5
 
@@ -1050,5 +1048,4 @@ filo.close()
 filo2.close()
 
 
-show(block=False)
-ion()
+show()
