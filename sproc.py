@@ -428,6 +428,7 @@ ff = [interp1d(d[:,0],d[:,8]) for d in cdata]
 
 # process separately the H and L loops (if interleaving, just one otherwise)
 pdata = []
+pLOdev = []
 pBdev = []
 pNdev = []
 
@@ -470,6 +471,11 @@ for i, lock in enumerate(locks):
 
 	data = column_stack((t,freqR,freqL,freq,Bsplit))
 	pdata += [data]
+
+	# calc allan deviation vs cavity
+	tau2, adev, aderr, adn = allantools.oadev(freq/fYb, data_type='freq', rate=rate, taus='all')
+	pLOdev += [(tau2, adev, aderr)]	
+	
 
 	# calc allan deviation of the Bsplit using allantools!
 	tau2, adev, aderr, adn = allantools.oadev(Bsplit, data_type='freq', rate=rate, taus=tau)
@@ -655,14 +661,30 @@ for data,what in zip(pdata, names):
 
 # plot
 # mean freq
+# figure()
+# title(shortname + " - Freq")
+# xlabel('Time /s')
+# ylabel('Frequency /Hz')
+# for data,what in zip(pdata, names):
+# 	plot(data[:,0]-epoch0, data[:,3],label=what)
+# legend(loc=0)
+# pause(0.001)
 figure()
-title(shortname + " - Freq")
-xlabel('Time /s')
-ylabel('Frequency /Hz')
-for data,what in zip(pdata, names):
-	plot(data[:,0]-epoch0, data[:,3],label=what)
+title(shortname + " - Clock vs Cavity")
+xlabel('Tau /s')
+ylabel('Allan dev.')
+for data,what in zip(pLOdev, names):
+	loglog(data[0], data[1], label=what)
+wpm=3e-13
+wfm=4e-14
+ffm=3e-16
+rwm=2e-19 
+loglog(tau, (wpm**2*tau**-2 + wfm**2*tau**-1 + ffm**2 + rwm**2*tau)**0.5, label='maser')
+grid(which="both")
 legend(loc=0)
 pause(0.001)
+
+
 
 
 # Bsplit
