@@ -24,7 +24,7 @@
 # SPDX-License-Identifier: MIT
 
 
-from locale import LC_TIME
+
 import time
 import datetime
 import os
@@ -74,7 +74,7 @@ parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequen
 parser.add_argument('--Toven',  type=float, nargs='+', help='oven temperature in degree Celsius')
 parser.add_argument('--trabi',  type=float, nargs='+', help='rabi time in ms')
 parser.add_argument('--Voffsetxp',  type=float, nargs='+', help='Voltage offset along the xp direction.')
-parser.add_argument('--Troom', action='store_true', help='Load room temperature data')
+parser.add_argument('--noTroom', action='store_true', help='Load room temperature data')
 parser.add_argument('--Tdir',  help='Folder of temperature data', default="../../Temperature Data/")
 
 parser.add_argument('--sbfile',  nargs='*', help='sidebands file (used to automatically populate lattice info)', default=['./Vbands/all.dat'])
@@ -940,7 +940,7 @@ for i, lock in enumerate(locks):
 
 
 # look for room temoperature data
-if args.Troom:
+if not args.noTroom:
 	startdate = datetime.date.fromtimestamp(min(t))
 	stopdate = datetime.date.fromtimestamp(max(t))
 	step = datetime.timedelta(days=1)
