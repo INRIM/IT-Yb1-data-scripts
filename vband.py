@@ -492,11 +492,11 @@ if __name__ == '__main__':
 		if ll:	
 			l = ','.join(ll)
 		else:
-			l = '-'
+			l = nan
 		if ss:
 			spin = ','.join(ss)
 		else:
-			spin = '-'
+			spin = nan
 		
 		tag = args.tag[min(i, len(args.tag)-1)]
 		
@@ -507,8 +507,8 @@ if __name__ == '__main__':
 		
 		print('file: '+fil.name)
 		print('tag: '+tag)
-		print('l: '+l)
-		print('spin: '+spin)
+		print('l: ', l)
+		print('spin: ', spin)
 		
 		# fitting procedure
 		# =================
@@ -538,14 +538,21 @@ if __name__ == '__main__':
 		
 		
 		# lets get down some scales from labedit exc
-		medex = mean(exc)
-		test = where(exc > medex)[0]
+		#medex = mean(exc)
+		#test = where(exc > medex)[0]
 		
-		fmi = freq[test[0]]
-		fma = freq[test[-1]]
+		#fmi = freq[test[0]]
+		#fma = freq[test[-1]]
+		#fce = (fmi+fma)/2
+		#fxc = (fma-fmi)/2
+		
+		# nowadays sidebands are always pretty centered
+		# so, no need to test where the sidebands are
+		fmi = amin(freq)
+		fma = amax(freq)
 		fce = (fmi+fma)/2
 		fxc = (fma-fmi)/2
-		
+
 		
 		
 		# now recalculate excitation eta on the red side of the spectrum
@@ -797,7 +804,7 @@ if __name__ == '__main__':
 		def fun(x, A):
 			return A*x
 			
-		lopt, lcov = opt.curve_fit(fun, l, D, sigma=uD)
+		
 		
 		
 		figure()
@@ -805,10 +812,14 @@ if __name__ == '__main__':
 
 		errorbar(l, D, yerr=uD, fmt='o')
 
-		ll = linspace(0, max(l)*1.1, 100)
+		mask = ~isnan(l)
+		if sum(mask) > 2:
+			lopt, lcov = opt.curve_fit(fun, l[mask], D[mask], sigma=uD[mask])
+			ll = linspace(0, max(l[mask])*1.1, 100)
+			plot(ll, fun(ll, *lopt))
+		else:
+			lopt, lcov = zeros(1), atleast_2d(ones(1))
 
-		plot(ll, fun(ll, *lopt))
-		
 		xlabel('l /mV')
 		ylabel('D/ Er')
 		
