@@ -852,7 +852,7 @@ if len(locks) > 1:
 			res[-1]['totTime/s'] = tottime
 			
 			
-			if args.density:
+			if args.density or abs(savenum[i].n-savenum[j].n) > 15:
 				# is density if made in similar conditions
 				if(conds[i]['l/mV'] == conds[j]['l/mV'] and conds[i]['f/MHz'] == conds[j]['f/MHz'] and conds[i]['trabi/ms'] == conds[j]['trabi/ms']):
 				
