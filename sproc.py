@@ -47,7 +47,10 @@ import scipy.stats
 from matplotlib.pyplot import *
 ion()
 close('all')
+import matplotlib.offsetbox as offsetbox
 
+
+import tintervals as ti
 
 import sys
 
@@ -340,10 +343,10 @@ pause(0.001)
 # correct freq vs time	
 figure()
 title(shortname)
-xlabel('Time /s')
+xlabel('MJD')
 ylabel('Frequency /Hz')
 for (d,t) in zip(cdata,cycles):
-	plot(d[:,0]-epoch0, d[:,8],label=t)
+	plot(ti.mjd_from_epoch(d[:,0]), d[:,8],label=t)
 legend(loc=0)
 pause(0.001)
 
@@ -675,6 +678,7 @@ xlabel('Tau /s')
 ylabel('Allan dev.')
 for data,what in zip(pLOdev, names):
 	loglog(data[0], data[1], label=what)
+
 wpm=3e-13
 wfm=4e-14
 ffm=3e-16
@@ -804,23 +808,30 @@ if len(locks) > 1:
 				white = white[where((tau2>10.) & (tau2<tottime/8.))]
 			a = mean(white)	
 
+			whiteunc = a*tottime**-0.5
+
+			udiff_rel = ufloat(mean(diff_rel), whiteunc)
+			udiffe = udiff_rel*fYb
+
 			figure()
 			title(shortname + " - Interl. Stability " + diffname)
 			xlabel('Tau /s')
 			ylabel('Allan Dev.')
-			loglog(taufit, a*taufit**-0.5, "r-", label = "White")
+			loglog(taufit, a*taufit**-0.5, "r-", label = f'White = {a:.02}')
 			loglog(taut2, tadev, "-", label = "Total")	
 			#loglog(tau2, adev, "o", label = "Overl.")
 			errorbar(tau2, adev,  yerr = [adev-admin, admax-adev], fmt='o')
 			#plot(tau2, adev, fmt='.', ecolor='g')
 			grid(which="both")
 			legend(loc=0)
+			
+			text = f'Relative Diff = {udiff_rel:.2uS}'
+			ob = offsetbox.AnchoredText(text, loc=3)
+			gca().add_artist(ob)
+
 			pause(0.001)
 
-			whiteunc = a*tottime**-0.5
 
-			udiff_rel = ufloat(mean(diff_rel), whiteunc)
-			udiffe = udiff_rel*fYb
 
 		
 
