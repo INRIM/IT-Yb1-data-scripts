@@ -7,6 +7,8 @@ The two scripts are:
 - `sproc.py` to process clock data: it provides analisys of interleaved measurements, instability and interpolation to common timetags
 - `vband.py` to process sideband data: it provides sidebands fits and temperature vs depth analisys
 
+## New development
+New development of the sidebands fit has been moved to https://github.com/INRIM/large-lattice-model
 
 ## Basic usage
 
@@ -37,6 +39,7 @@ To instal gsl (under Linux Mint):
 `apt-get install libgsl-dev`
 
 `pip3 instal pygsl`
+
 
 ## License
 
