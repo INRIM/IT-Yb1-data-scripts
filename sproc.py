@@ -25,36 +25,31 @@
 
 
 
-import time
+import argparse
 import datetime
 import os
 import os.path
+import re
 import shutil
-import argparse
+import time
 
 import allantools
-
-import re
-
-from numpy import *
-from uncertainties import ufloat, ufloat_fromstr, UFloat
-from uncertainties.umath import *
-from uncertainties import unumpy
-
-from scipy.interpolate import interp1d
-from scipy.ndimage import uniform_filter1d, maximum_filter1d
 import scipy.stats
 from matplotlib.pyplot import *
+from numpy import *
+from scipy.interpolate import interp1d
+from scipy.ndimage import maximum_filter1d, uniform_filter1d
+from uncertainties import UFloat, ufloat, ufloat_fromstr, unumpy
+from uncertainties.umath import *
+
 ion()
 close('all')
-import matplotlib.offsetbox as offsetbox
-
-
-import tintervals as ti
-
 import sys
 
-from scipy.constants import k, h
+import matplotlib.offsetbox as offsetbox
+import tintervals as ti
+from scipy.constants import h, k
+
 kB = k
 Er = 2024.*h
 
@@ -71,7 +66,7 @@ parser.add_argument('-g',  type=str, nargs='+', help='Good data ranges as list o
 parser.add_argument('--density','-d', action='store_true', help='Interpret data as density data')
 parser.add_argument('--triple', '-t', action='store_true', help='Interpret data as the interleave of 3 cycles')
 parser.add_argument('--single', '-s', action='store_true', help='Interpret data as only one cycle')
-parser.add_argument('--ptb', '-p', action='store_true', help='Interpret data as ptb-style interleaving')
+parser.add_argument('--trad', action='store_true', help='Interpret data as traditional interleaving')
 
 parser.add_argument('--lattice_l',  type=float, nargs='+', help='lattice depth signal in mV')
 parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequency as deviation from 394 798 000 MHz')
@@ -120,7 +115,20 @@ elif args.single:
 	L = [0,1]
 	locks = [L]
 	names = ["L"]
-elif args.ptb:
+
+elif args.trad:
+	# number of cycles
+	cycles = [1, 2, 3,4]
+	Ncycles = 4
+
+	# name High and Low locks
+	H = [0,1]
+	L = [2,3]
+	locks = [H, L]
+	names = ["H", "L"]
+
+else:
+	# DEFAULT: new "ptb-style" interleaving
 	# number of cycles
 	cycles = [1, 2, 3,4]
 	Ncycles = 4
@@ -131,16 +139,8 @@ elif args.ptb:
 	locks = [H, L]
 	names = ["H", "L"]
 
-else:
-	# number of cycles
-	cycles = [1, 2, 3,4]
-	Ncycles = 4
 
-	# name High and Low locks
-	H = [0,1]
-	L = [2,3]
-	locks = [H, L]
-	names = ["H", "L"]
+
 
 
 # prepare to save some infos
