@@ -71,6 +71,7 @@ parser.add_argument('-g',  type=str, nargs='+', help='Good data ranges as list o
 parser.add_argument('--density','-d', action='store_true', help='Interpret data as density data')
 parser.add_argument('--triple', '-t', action='store_true', help='Interpret data as the interleave of 3 cycles')
 parser.add_argument('--single', '-s', action='store_true', help='Interpret data as only one cycle')
+parser.add_argument('--ptb', '-p', action='store_true', help='Interpret data as ptb-style interleaving')
 
 parser.add_argument('--lattice_l',  type=float, nargs='+', help='lattice depth signal in mV')
 parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequency as deviation from 394 798 000 MHz')
@@ -119,6 +120,17 @@ elif args.single:
 	L = [0,1]
 	locks = [L]
 	names = ["L"]
+elif args.ptb:
+	# number of cycles
+	cycles = [1, 2, 3,4]
+	Ncycles = 4
+
+	# name High and Low locks
+	H = [0,2]
+	L = [1,3]
+	locks = [H, L]
+	names = ["H", "L"]
+
 else:
 	# number of cycles
 	cycles = [1, 2, 3,4]
