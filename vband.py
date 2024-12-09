@@ -67,9 +67,9 @@ if __name__ == '__main__':
 	parser.add_argument('--tag', nargs='+', help='Tag or list of tags for each file', default='-')
 	parser.add_argument('--num', type=str, nargs='*', help='Search files from num range instead of full name, e.g. 1-10')
 
-	parser.add_argument('--Dscale',  type=float, help='Scale for the initial guess of D', default=1.3)
-	parser.add_argument('--Tzscale',  type=float, help='Scale for the initial guess of Tz', default=0.2)
-	parser.add_argument('--Trscale',  type=float, help='Scale for the initial guess of Tr', default=0.2)
+	parser.add_argument('--Dscale',  type=float, help='Scale for the initial guess of D', default=0.9)
+	parser.add_argument('--Tzscale',  type=float, help='Scale for the initial guess of Tz', default=0.4)
+	parser.add_argument('--Trscale',  type=float, help='Scale for the initial guess of Tr', default=0.4)
 	parser.add_argument('--Tz',  type=float, help='Fix the initial guess of Tz, then Tzscale is ignored', default=None)
 	parser.add_argument('--Tr',  type=float, help='Fix the initial guess of Tr, then Trscale is ignored', default=None)
 	parser.add_argument('--fac',  type=float, help='Quality of integration parameter', default=10)
@@ -602,7 +602,7 @@ if __name__ == '__main__':
 		# guess sbands parameters
 		A = sum(cexc)*median(diff(freq))/w0
 		D = fxc**2/(4*vrec**2)*args.Dscale
-		
+		#D=58.34
 		if args.Tz:
 			Tz =  args.Tz
 		else:
@@ -615,7 +615,7 @@ if __name__ == '__main__':
 		
 
 		# fit
-		sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr], bounds=([0., 0., 1e-7, 1e-7],[300, 2*D, 1e-4, 1e-4]))
+		sopt, scov = opt.curve_fit(fit_sbands, freq, sexc, p0=[A,D,Tz,Tr], bounds=([0., 0., 1e-7, 1e-7],[300,2*D, 1e-4, 1e-4]))
 		
 
 		
