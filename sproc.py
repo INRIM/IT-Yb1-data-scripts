@@ -67,6 +67,7 @@ parser.add_argument('--density','-d', action='store_true', help='Interpret data 
 parser.add_argument('--triple', '-t', action='store_true', help='Interpret data as the interleave of 3 cycles')
 parser.add_argument('--single', '-s', action='store_true', help='Interpret data as only one cycle')
 parser.add_argument('--trad', action='store_true', help='Interpret data as traditional interleaving')
+parser.add_argument('--invert', action='store_true', help='Interpret data inverting high and low cycles')
 
 parser.add_argument('--lattice_l',  type=float, nargs='+', help='lattice depth signal in mV')
 parser.add_argument('--lattice_f',  type=float, nargs='+', help='lattice frequency as deviation from 394 798 000 MHz')
@@ -124,6 +125,17 @@ elif args.trad:
 	# name High and Low locks
 	H = [0,1]
 	L = [2,3]
+	locks = [H, L]
+	names = ["H", "L"]
+
+elif args.invert:
+	# number of cycles
+	cycles = [1, 2, 3,4]
+	Ncycles = 4
+
+	# name High and Low locks
+	H = [1,3]
+	L = [0,2]
 	locks = [H, L]
 	names = ["H", "L"]
 
@@ -547,7 +559,7 @@ for i, lock in enumerate(locks):
 				sbdata = array(sb)
 
 		# chose the only tag or the corresponding tag
-		lattice_l = args.lattice_l[min(i, len(args.lattice_l)-1)]
+		lattice_l = args.lattice_l[min((i, len(args.lattice_l)-1))]
 		conds[i]['l/mV'] = lattice_l
 
 
@@ -649,16 +661,16 @@ for i, lock in enumerate(locks):
 		
 	# other conds
 	if args.lattice_f:
-		conds[i]['f/MHz'] = args.lattice_f[min(i, len(args.lattice_f)-1)]
+		conds[i]['f/MHz'] = args.lattice_f[min((i, len(args.lattice_f)-1))]
 
 	if args.trabi:
-		conds[i]['trabi/ms'] = args.trabi[min(i, len(args.trabi)-1)]
+		conds[i]['trabi/ms'] = args.trabi[min((i, len(args.trabi)-1))]
 
 	if args.Toven:
-		conds[i]['Toven/*C'] = args.Toven[min(i, len(args.Toven)-1)]
+		conds[i]['Toven/*C'] = args.Toven[min((i, len(args.Toven)-1))]
 
 	if args.Voffsetxp:
-		conds[i]['Voffsetxp/V'] = args.Voffsetxp[min(i, len(args.Toven)-1)]
+		conds[i]['Voffsetxp/V'] = args.Voffsetxp[min((i, len(args.Toven)-1))]
 
 
 
@@ -684,6 +696,13 @@ for data,what in zip(pdata, names):
 # 	plot(data[:,0]-epoch0, data[:,3],label=what)
 # legend(loc=0)
 # pause(0.001)
+
+
+
+
+
+
+
 figure()
 title(shortname + " - Clock vs Cavity")
 xlabel('Tau /s')
@@ -699,7 +718,6 @@ loglog(tau, (wpm**2*tau**-2 + wfm**2*tau**-1 + ffm**2 + rwm**2*tau)**0.5, label=
 grid(which="both")
 legend(loc=0)
 pause(0.001)
-
 
 
 
