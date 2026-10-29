@@ -60,7 +60,7 @@ parser = argparse.ArgumentParser(
     description="Process IT-Yb1 data for interleaved measurements",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 )
-parser.add_argument("infile", type=argparse.FileType("r"), nargs="+", help="File or list of files to be processed")
+parser.add_argument("infile", nargs="+", help="File or list of files to be processed")
 parser.add_argument("--dir", help="Directory for storing results", default="./Proc")
 parser.add_argument(
     "-g",
@@ -106,7 +106,7 @@ args = parser.parse_args()
 if not os.path.exists(args.dir):
     os.makedirs(args.dir)
 
-files = [os.path.basename(f.name) for f in args.infile]
+file_names = [os.path.basename(filename) for filename in args.infile]
 
 
 def myint(x):
@@ -177,8 +177,8 @@ res = [{} for _ in range(len(locks))]
 
 # give a proper name
 # now of only the first file!
-shortname = files[0][:19]
-name_with_description = files[0][:-4]
+shortname = file_names[0][:19]
+name_with_description = file_names[0][:-4]
 subdir = os.path.join(args.dir, name_with_description)
 
 
@@ -209,57 +209,58 @@ aoms = []
 
 
 for f in args.infile:
-    data = genfromtxt(f, skip_footer=1)
-    # ignore the first Ncycles lines (usually bugged)
-    data = data[Ncycles:]
-    # consider only a proper number of lines (multiple of Ncycles)
-    x = len(data) % Ncycles
-    if x != 0:
-        data = data[:-x]
+    with open(f, "r") as fili:
+        data = genfromtxt(fili, skip_footer=1)
+        # ignore the first Ncycles lines (usually bugged)
+        data = data[Ncycles:]
+        # consider only a proper number of lines (multiple of Ncycles)
+        x = len(data) % Ncycles
+        if x != 0:
+            data = data[:-x]
 
-    arrays += [data]
+        arrays += [data]
 
-    # parse the AOM frequency
-    # rewind the file
-    f.seek(0)
-    # read frist 15 lines (comments)
-    # https://stackoverflow.com/questions/1767513/read-first-n-lines-of-a-file-in-python
-    comments = [next(f) for x in range(30)]
+        # parse the AOM frequency
+        # rewind the file
+        fili.seek(0)
+        # read frist 15 lines (comments)
+        # https://stackoverflow.com/questions/1767513/read-first-n-lines-of-a-file-in-python
+        comments = [next(fili) for x in range(30)]
 
-    # regex the aom frequency
-    # https://stackoverflow.com/questions/46690385/how-to-read-numerical-data-from-the-comment-of-a-txt-file-into-numpy
-    for line in comments:
-        aoms += [float(x) for x in re.findall("# Synth [\w\s]+ (\d+[.]\d+)", line)]
+        # regex the aom frequency
+        # https://stackoverflow.com/questions/46690385/how-to-read-numerical-data-from-the-comment-of-a-txt-file-into-numpy
+        for line in comments:
+            aoms += [float(x) for x in re.findall("# Synth [\w\s]+ (\d+[.]\d+)", line)]
 
-        # regex some metadata, in the form of list of numbers
-        # note only the first file is read
-        if not args.lattice_l:
-            temp = re.findall("# lattice_l\s*=\s*([\d.,]+[\d.])", line)
-            if temp:
-                args.lattice_l = [float(x) for x in temp[0].split(",")]
+            # regex some metadata, in the form of list of numbers
+            # note only the first file is read
+            if not args.lattice_l:
+                temp = re.findall("# lattice_l\s*=\s*([\d.,]+[\d.])", line)
+                if temp:
+                    args.lattice_l = [float(x) for x in temp[0].split(",")]
 
-        if not args.lattice_f:
-            temp = re.findall("# lattice_f\s*=\s*([\d.,]+[\d.])", line)
-            if temp:
-                args.lattice_f = [float(x) for x in temp[0].split(",")]
+            if not args.lattice_f:
+                temp = re.findall("# lattice_f\s*=\s*([\d.,]+[\d.])", line)
+                if temp:
+                    args.lattice_f = [float(x) for x in temp[0].split(",")]
 
-        if not args.trabi:
-            temp = re.findall("# trabi\s*=\s*([\d.,]+[\d.])", line)
-            if temp:
-                args.trabi = [float(x) for x in temp[0].split(",")]
+            if not args.trabi:
+                temp = re.findall("# trabi\s*=\s*([\d.,]+[\d.])", line)
+                if temp:
+                    args.trabi = [float(x) for x in temp[0].split(",")]
 
-        if not args.Toven:
-            temp = re.findall("# Toven\s*=\s*([\d.,]+[\d.])", line)
-            if temp:
-                args.Toven = [float(x) for x in temp[0].split(",")]
+            if not args.Toven:
+                temp = re.findall("# Toven\s*=\s*([\d.,]+[\d.])", line)
+                if temp:
+                    args.Toven = [float(x) for x in temp[0].split(",")]
 
-        if not args.Voffsetxp:
-            temp = re.findall("# Voffset_xp\s*=\s*([\d.,]+[\d.])", line)
-            if temp:
-                args.Voffsetxp = [float(x) for x in temp[0].split(",")]
+            if not args.Voffsetxp:
+                temp = re.findall("# Voffset_xp\s*=\s*([\d.,]+[\d.])", line)
+                if temp:
+                    args.Voffsetxp = [float(x) for x in temp[0].split(",")]
 
-    # I am done with the files, lets close them
-    f.close()
+        # I am done with the files, lets close them
+
 
 # get the AOM freq
 faom = mean(aoms)
@@ -966,9 +967,9 @@ if not args.noTroom:
     maxT = []
 
     # calculate temperture spread
-    for f in tfiles:
-        if os.path.isfile(f):
-            tdata = genfromtxt(f, skip_footer=1, invalid_raise=False)
+    for fili in tfiles:
+        if os.path.isfile(fili):
+            tdata = genfromtxt(fili, skip_footer=1, invalid_raise=False)
 
             # Exclude some temperature data which may be faulty
             if args.Texclude is not None:
@@ -1008,7 +1009,9 @@ if not args.noTroom:
 
         check = amax(t) - amax(timesT2)
         if check > 180.0:
-            print("WARNING: Temperature data from {} not up to date up to {:.1f} s!".format(os.path.basename(f), check))
+            print(
+                "WARNING: Temperature data from {} not up to date up to {:.1f} s!".format(os.path.basename(fili), check)
+            )
 
     else:
         print("WARNING: No corresponding temperature data found.")
@@ -1047,7 +1050,7 @@ for i, lock in enumerate(locks):
         [shortname, names[i]]
         + [conds[i].get(x, nan) for x in condkeys]
         + [res[i].get(x, nan) for x in reskeys]
-        + [",".join(files)]
+        + [",".join(file_names)]
     )
 
     # if the values in the conds dictionary are sepcified or not change the format
