@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-#
 # vband
 # Copyright (C) 2021  Marco Pizzocaro - Istituto Nazionale di Ricerca Metrologica (INRIM)
 #
@@ -27,23 +25,17 @@
 import argparse
 import fnmatch
 import os
+import re
 import sys
-import time
 from datetime import datetime
 
-# not bugged mathieu functions
-# to instal gsl
-# apt-get install libgsl-dev
-# pip3 instal pygsl
-# note that special functions are under testing
-import pygsl.testing.sf as sf
+import large_lattice_model as llm
 import scipy.optimize as opt
 from matplotlib import cm
 from matplotlib.pyplot import *
 from numpy import *
-from scipy.constants import *
-from scipy.special import eval_genlaguerre, factorial, mathieu_b, mathieu_cem, mathieu_sem
-from uncertainties import correlated_values, ufloat, ufloat_fromstr, umath, unumpy
+from scipy.constants import c, h, k
+from uncertainties import correlated_values, ufloat, ufloat_fromstr, unumpy
 
 __version__ = "1.1"
 
@@ -105,310 +97,6 @@ kappa = sqrt(2) / w
 wc = 518295836590863.0
 lc = c / wc
 kc = 2 * pi / lc
-
-
-## as reference: Frequencies (Blatt2009 eq. 4 and 5)
-# vz = 2*vrec*sqrt(D)
-# vr = vz*kappa/k
-
-
-def U(rho, D, nz):
-    """Return the lattice potential surface as Beloy2020 Eq. D2.
-
-    Inputs
-    ------
-    rho : radial coordinates in units of kappa**-1
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number
-
-    Returns
-    -------
-    U : lattice potential surface in Er
-    """
-    Drho = D * exp(-(rho**2))
-    return sf.mathieu_b(nz + 1, Drho / 4) - Drho / 2
-
-
-def R(E, D, nz):
-    """Inverse uf U (Beloy2020 pag. 4)
-
-    Inputs
-    ------
-    E : potential energy in Er
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number
-
-    Returns
-    -------
-    r : radial coordinates in units of kappa**-1
-    """
-    mineps = 0.0
-    maxeps = 2.7  # max radius for nz = 0 and D=1500
-    try:
-        res = opt.root_scalar(lambda x, *args: U(x, *args) - E, args=(D, nz), bracket=[mineps, maxeps], method="brentq")
-    except ValueError:
-        return 0.0
-
-    return res.root
-
-
-R = vectorize(R)
-
-
-def DeltaU(rho, D, nz, dn=1):
-    """Return the difference between lattice potential surfaces.
-
-    Inputs
-    ------
-    rho : radial coordinates in units of kappa**-1
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number of the starting level
-    dn : longitudinal quantum number jump (default: 1)
-
-    Returns
-    -------
-    DeltaU : difference U(rho, nz+dn) - U(rho, nz)
-    """
-
-    return U(rho, D, nz + dn) - U(rho, D, nz)
-
-
-# Harmonic Oscillator
-def Omega(rho, D, nz, dn=1):
-    """Normalized Rabi frequency for the harmonic oscillator (Wineland1979 eq. 31)
-
-    Inputs
-    ------
-    rho : radial coordinates in units of kappa**-1
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number of the starting level
-    dn : longitudinal quantum number jump (default: 1)
-
-    Returns
-    -------
-    Omega : Normalized Rabi frequency  (between 0 and 1)
-    """
-
-    Drho = D * exp(-(rho**2))
-    eta = kc / k / sqrt(2) / Drho**0.25
-
-    return (
-        exp(-(eta**2) / 2) * sqrt(factorial(nz) / factorial(nz + dn)) * eta ** (dn) * eval_genlaguerre(nz, dn, eta**2)
-    )
-
-
-# Using Mathieu Functions
-def OmegaMat(rho, D, nz, dn=1):
-    """Normalized Rabi frequency for Mathieu wavefunctions (Beloy2020 appendix)
-
-    Inputs
-    ------
-    rho : radial coordinates in units of kappa**-1
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number of the starting level
-    dn : longitudinal quantum number jump (default: 1)
-
-    Returns
-    -------
-    Omega : Normalized Rabi frequency (between 0 and 1)
-    """
-
-    Drho = D * exp(-(rho**2))
-    lim = pi / (2 * k)
-    if dn % 2:
-        res2 = integ.quad(
-            lambda z: 2
-            * k
-            / pi
-            * sf.mathieu_se(nz + 1, Drho / 4, (k * z + pi / 2))
-            * sin(kc * z)
-            * sf.mathieu_se(nz + 1 + dn, Drho / 4, (k * z + pi / 2)),
-            0,
-            lim,
-        )  # pygsl -- slower but no bugs!
-    else:
-        res2 = integ.quad(
-            lambda z: 2
-            * k
-            / pi
-            * sf.mathieu_se(nz + 1, Drho / 4, (k * z + pi / 2))
-            * cos(kc * z)
-            * sf.mathieu_se(nz + 1 + dn, Drho / 4, (k * z + pi / 2)),
-            0,
-            lim,
-        )  # pygsl -- slower but no bugs!
-
-    # integral is even
-    return 2 * abs(res2[0])
-
-
-OmegaMat = vectorize(OmegaMat)
-
-
-def Gn(E, D, nz):
-    """Density of states for the lattic trap (Beloy2020 eq. 11)
-
-    Inputs
-    ------
-    E : potential energy in Er
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number of the starting level
-
-    Returns
-    -------
-    G : density of states at energy E (same units of Beloy2020 fig. 3)
-
-    """
-
-    return m / (2 * hbar**2) * R(E, D, nz) ** 2 * Er / k**2  # *Er convert to Er units
-
-
-def Gr(rc, D, nz):
-    """Density of states for the lattic trap given rc(Beloy2020 eq. 11)
-
-    Inputs
-    ------
-    rc : Condon point at energy E
-    D : depth of the lattice in Er
-    nz : longitudinal quantum number of the starting level
-
-    Returns
-    -------
-    G : density of states at energy E (same units of Beloy2020 fig. 3)
-
-    """
-
-    return m / (2 * hbar**2) * rc**2 * Er / k**2  # *Er convert to Er units
-
-
-def maxnz(D):
-    """Return the maximum nz for a given depth"""
-    # ansatz 	twice the harmonic oscillators levels
-    maxn = int(-U(0, D, 0) / sqrt(D))
-    test = arange(maxn)
-    return amax(where(U(0, D, test) < 0))
-
-
-# lorentzian
-def lor(x, x0, w):
-    """Simple lorentzian with center x0 and HWHM w peak 0.5"""
-    den = 1 + 1 / w**2 * (x - x0) ** 2
-    return 0.5 / den
-
-
-# both sideband
-# it is faster to calculate sidebands at the same time
-def sbands(x, D, Tz, Tr, b, r, wc, dn=1, Emax=0.0, fac=10):
-    """Blue sideband as a sum of lorentzian.
-
-    Inputs
-    ------
-    x : frequency in Hz
-    D : depth of the lattice in Er
-    Tz : longitudinal temperature in K
-    Tr : radial temperature in K
-    b : blue sidebands scaling
-    r : red sidebands scaling
-    wc : carrier half width half maximum
-    dn : order of the sideband (default: 1)
-    Emax : max energy levels populated (default: 0)
-    fac : control the number of lorentzian to be used in the sum
-    higher number will give smoother sidebands but take more computational time
-    (default: 10)
-
-    Returns
-    -------
-    Both sidebands as excitation.
-
-    """
-    Nz = int(maxnz(D) * 1.0 + 0.5)
-    betar = Er / (kB * Tr)
-    betaz = Er / (kB * Tz)
-
-    # simple exp factor for a given Tz
-    # will be just used computationally to reduce the number of lorentzian used at high nz
-    # r = exp(-betaz)
-
-    tot = zeros(x.shape)
-    tnorm = 0
-
-    for nz in arange(Nz + 1):
-        Emin = U(0, D, nz)
-        # Emax = 0 # I do not think this should change -- atoms close to this are lost, but I should kept the full normalization
-
-        # this just save computational time
-        # use less samples for high levels
-        # formula with r is normalized exponential distribution (from gemotric series)
-        # high dn use higher number because it has sharper lorentzians
-        # N = int(Natoms*r**nz/(1-r**Nz)*(1-r)+2.)*dn
-
-        # new way to estabish the number of lorentzians
-        N = int(DeltaU(0, D, nz, dn) * fac * (nz + 1) ** -0.5)  # other idea use Omega
-
-        # Uniform sampling in E
-        EE = linspace(Emin, Emax, N)[:, newaxis]
-        rc = R(EE, D, nz)
-        # dE = (Emax - Emin)/N
-
-        # calc normalization
-        pp = Gr(rc, D, nz) * exp(-(EE - Emin) * betar) * exp(-Emin * betaz)
-        tnorm += trapz(
-            pp, EE, axis=0
-        )  # sum(pp, axis=0) *dE #trapz(pp, EE, axis=0) #trapz is a bit slower, but handles better different Ns
-
-        # blue
-        x0 = DeltaU(rc, D, nz, dn) * vrec
-        ff = Omega(rc, D, nz, dn) * wc
-
-        # sum lorentzian for blue sideband - note cutoff on energy
-        blue = pp * lor(x, x0, ff) * (U(rc, D, nz + dn) < Emax)
-
-        res = b * trapz(blue, EE, axis=0)  # sum(yy, axis=0)*dE #trapz(yy, EE, axis=0) # speed sum > trapz > simps
-
-        tot += res
-
-        # red
-        if nz >= dn:
-            # rc = R(EE, D, nz)  # same as blue
-            x0 = DeltaU(rc, D, nz, -dn) * vrec
-            ff = Omega(rc, D, nz - dn, dn) * wc
-
-            # sum lorentzian on red sideband
-            red = pp * lor(x, x0, ff)
-
-            res = r * trapz(red, EE, axis=0)  # trapz(yy, EE, axis=0) # sum(yy, axis=0)*median(diff(EE, axis=0)) #
-
-            tot += res
-
-    return tot / tnorm
-
-
-def distrib(E, D, Tz, Tr, Emax=0.0):
-    """Distribution of atoms in the trap."""
-    Nz = maxnz(D)
-    betar = Er / (kB * Tr)
-    betaz = Er / (kB * Tz)
-    nz = arange(Nz + 1)[:, newaxis]
-
-    Emin = U(0, D, nz)
-    pp = Gn(E, D, nz) * exp(-(E - Emin) * betar) * exp(-Emin * betaz) * (E < Emax)
-
-    AEmin = amin(Emin)
-
-    EE = arange(AEmin, Emax + 1, 1.0)
-    ppNorm = Gn(EE, D, nz) * exp(-(EE - Emin) * betar) * exp(-Emin * betaz)
-    znorm = trapz(ppNorm, EE, axis=1)
-    norm = sum(znorm)
-
-    return pp / norm, znorm / norm
-
-
-def fit_lor(x, A, x0, w):
-    return A * lor(x, x0, w)
-
-
-def fit_sbands(x, A, D, Tz, Tr, Sb=0.0):  # note misisng w from parameters
-    return sbands(x, D, Tz, Tr, A, A * (1 + Sb), w0, dn=1, Emax=0, fac=args.fac)
 
 
 if __name__ == "__main__":
@@ -560,7 +248,7 @@ if __name__ == "__main__":
         a = amax(cexc) * 2
         fc = cfreq[argmax(cexc)]
 
-        copt, ccov = opt.curve_fit(fit_lor, cfreq, cexc, p0=[a, fc + 100, cscale / 10])
+        copt, ccov = opt.curve_fit(llm.fit_lorentzian, cfreq, cexc, p0=[a, fc + 100, cscale / 10])
 
         # save carrier width and translate to center
         w0 = copt[2]
@@ -568,7 +256,7 @@ if __name__ == "__main__":
         copt[1] = 0
 
         # remove carrier for future fits
-        sexc = exc - fit_lor(freq, *copt)
+        sexc = exc - llm.fit_lorentzian(freq, *copt)
 
         # guess sbands parameters
         A = sum(cexc) * median(diff(freq)) / w0
@@ -585,13 +273,14 @@ if __name__ == "__main__":
             Tr = D * Er / kB * args.Trscale
 
         # fit
+        fit_sbands = llm.get_fit_sidebands(w0, dn=1, E_max=0, fac=args.fac)
         sopt, scov = opt.curve_fit(
             fit_sbands, freq, sexc, p0=[A, D, Tz, Tr], bounds=([0.0, 0.0, 1e-7, 1e-7], [300, 2 * D, 1e-4, 1e-4])
         )
 
         # Plot fit
         ff = linspace(amin(freq), amax(freq), 400)
-        fit = fit_sbands(ff, *sopt) + fit_lor(ff, *copt)
+        fit = fit_sbands(ff, *sopt) + llm.fit_lorentzian(ff, *copt)
 
         # single plot
         figure("comp", figsize=(12.8, 4.8))
