@@ -1,0 +1,21 @@
+[project]
+name = "it-yb1-data-scripts"
+version = "0.2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "allantools>=2024.6",
+    "large-lattice-model",
+    "matplotlib>=3.11.2",
+    "numpy>=2.4.6",
+    "scipy>=1.17.1",
+    "uncertainties>=3.2.3",
+]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.17.1",
+    "ruff>=0.17.3",
+]
+
+[tool.uv.sources]
+large-lattice-model = { git = "https://github.com/INRIM/large-lattice-model.git" }
