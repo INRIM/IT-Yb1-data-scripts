@@ -564,7 +564,7 @@ wheels = [
 [[package]]
 name = "it-yb1-data-scripts"
 version = "0.2.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "allantools" },
     { name = "large-lattice-model" },

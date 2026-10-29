@@ -19,3 +19,11 @@ dev = [
 
 [tool.uv.sources]
 large-lattice-model = { git = "https://github.com/INRIM/large-lattice-model.git" }
+
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["sproc", "vband"]
