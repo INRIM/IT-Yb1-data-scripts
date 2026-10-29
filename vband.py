@@ -474,8 +474,8 @@ if __name__ == "__main__":
         ss = []
 
         for line in comments:
-            ll += re.findall(r"l\s?=\s?(\".*?\"|\S*)", line)
-            ss += re.findall(r"s\s?=\s?(\".*?\"|\S*)", line)
+            ll += re.findall(r"\bl\s?=\s?(\".*?\"|\S*)", line)
+            ss += re.findall(r"\bs\s?=\s?(\".*?\"|\S*)", line)
 
         if ll:
             l = ",".join(ll)
