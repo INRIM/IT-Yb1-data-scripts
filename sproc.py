@@ -82,6 +82,9 @@ parser.add_argument("--trabi", type=float, nargs="+", help="rabi time in ms")
 parser.add_argument("--Voffsetxp", type=float, nargs="+", help="Voltage offset along the xp direction.")
 parser.add_argument("--noTroom", action="store_true", help="Load room temperature data")
 parser.add_argument("--Tdir", help="Folder of temperature data", default="../../Temperature Data/")
+parser.add_argument(
+    "--Texclude", "-X", type=int, help="Columns of temperature data to exclude", nargs="+", default=None
+)
 
 parser.add_argument(
     "--sbfile",
@@ -966,6 +969,11 @@ if not args.noTroom:
     for f in tfiles:
         if os.path.isfile(f):
             tdata = genfromtxt(f, skip_footer=1, invalid_raise=False)
+
+            # Exclude some temperature data which may be faulty
+            if args.Texclude is not None:
+                tdata = delete(tdata, args.Texclude, axis=1)
+
             # only loook for temperature in the (start, stop) ranges
             for mint, maxt in Tvals:
                 times = tdata[:, 0]
@@ -991,6 +999,9 @@ if not args.noTroom:
         mT = mean(T)
         uT = mean(uncT)
         mTroom = ufloat(mT, uT)
+
+        # print some stats
+        print(f"Recorded temperature = {mTroom:.uS} *C")
 
         for i, lock in enumerate(locks):
             conds[i]["Troom/*C"] = mTroom
