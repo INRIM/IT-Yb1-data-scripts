@@ -30,10 +30,10 @@ import sys
 from datetime import datetime
 
 import large_lattice_model as llm
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize as opt
 from matplotlib import cm
-from matplotlib.pyplot import *
 from uncertainties import correlated_values, ufloat, ufloat_fromstr, unumpy
 
 __version__ = "1.1"
@@ -72,8 +72,8 @@ if __name__ == "__main__":
     if not os.path.exists(figdir):
         os.makedirs(figdir)
 
-    ioff()
-    close("all")
+    plt.ioff()
+    plt.close("all")
 
 
 Er = llm.settings.Er
@@ -266,27 +266,27 @@ if __name__ == "__main__":
             fit = fit_sbands(ff, *sopt) + llm.fit_lorentzian(ff, *copt)
 
             # single plot
-            figure("comp", figsize=(12.8, 4.8))
-            plot(freq, exc, "o", label=numname, color=cm.viridis(i / Nf))
-            plot(ff, fit, color=cm.viridis(i / Nf))
-            grid(True)
-            ylabel("Excitation probability")
-            xlabel("Frequency detuning /Hz")
-            legend(loc=0)
+            plt.figure("comp", figsize=(12.8, 4.8))
+            plt.plot(freq, exc, "o", label=numname, color=cm.viridis(i / Nf))
+            plt.plot(ff, fit, color=cm.viridis(i / Nf))
+            plt.grid(True)
+            plt.ylabel("Excitation probability")
+            plt.xlabel("Frequency detuning /Hz")
+            plt.legend(loc=0)
 
             # for each file
-            figure(figsize=(12.8, 4.8))
-            title(basename)
-            plot(freq, exc, "o")
-            plot(ff, fit)
-            grid(True)
-            ylabel("Excitation probability")
-            xlabel("Frequency detuning /Hz")
-            savefig(figname)
+            plt.figure(figsize=(12.8, 4.8))
+            plt.title(basename)
+            plt.plot(freq, exc, "o")
+            plt.plot(ff, fit)
+            plt.grid(True)
+            plt.ylabel("Excitation probability")
+            plt.xlabel("Frequency detuning /Hz")
+            plt.savefig(figname)
             # pause(0.001) # matplotlib need a pause to catch up -- see https://stackoverflow.com/questions/28269157/plotting-in-a-non-blocking-way-with-matplotlib
             # for many figure do not show
             if Nf > 9:
-                close()
+                plt.close()
 
             # extract parameters
             c_par = correlated_values(copt, ccov)
@@ -309,8 +309,8 @@ if __name__ == "__main__":
                 alltxt.write(logfmt.format(basename, tag, l, spin, *c_par, *s_par, Natoms))
 
     if Nf > 1:
-        figure("comp")
-        savefig(allfigname)
+        plt.figure("comp")
+        plt.savefig(allfigname)
 
     if Nf > 0:
         with open(alltxtname, "a") as alltxt:
@@ -370,12 +370,12 @@ if __name__ == "__main__":
         if not args.Trlin:
             print(f"Br = {r_par[1]:.2uS}")
 
-        figure()
+        plt.figure()
         scale = 1e6
 
         for i, x in enumerate(set(data["spin"])):
             mask = np.where(data["spin"] == x)
-            errorbar(
+            plt.errorbar(
                 D[mask],
                 Tz[mask] * scale,
                 yerr=uTz[mask] * scale,
@@ -384,7 +384,7 @@ if __name__ == "__main__":
                 color=cm.tab20(1 - i),
                 label=f"Tz, s={x}",
             )
-            errorbar(
+            plt.errorbar(
                 D[mask],
                 Tr[mask] * scale,
                 yerr=uTr[mask] * scale,
@@ -396,27 +396,27 @@ if __name__ == "__main__":
 
         uu = np.linspace(0, max(D) * 1.1, 100)
 
-        plot(uu, fun(uu, *zopt) * scale, color=cm.tab20(4))
-        plot(uu, fun(uu, *ropt) * scale, color=cm.tab20(6))
+        plt.plot(uu, fun(uu, *zopt) * scale, color=cm.tab20(4))
+        plt.plot(uu, fun(uu, *ropt) * scale, color=cm.tab20(6))
 
-        legend(loc=0)
-        xlabel("D/ Er")
-        ylabel("T /µK")
-        grid(True)
+        plt.legend(loc=0)
+        plt.xlabel("D/ Er")
+        plt.ylabel("T /µK")
+        plt.grid(True)
 
-        left, right = xlim()
+        left, right = plt.xlim()
         if right < 550:
-            xlim(left, 550)
+            plt.xlim(left, 550)
 
         tfitname = os.path.join(args.dir, fitbasename + "-tfit.png")
-        savefig(tfitname)
+        plt.savefig(tfitname)
 
-        figure()
+        plt.figure()
         scale = 1
 
         for i, x in enumerate(set(data["spin"])):
             mask = np.where(data["spin"] == x)
-            errorbar(
+            plt.errorbar(
                 D[mask],
                 Na[mask] * scale,
                 yerr=uNa[mask] * scale,
@@ -426,43 +426,43 @@ if __name__ == "__main__":
                 label=f"Natoms s={x}",
             )
 
-        legend(loc=0)
-        xlabel("D/ Er")
-        ylabel("Natoms /mV")
-        grid(True)
-        xlim(0, None)
+        plt.legend(loc=0)
+        plt.xlabel("D/ Er")
+        plt.ylabel("Natoms /mV")
+        plt.grid(True)
+        plt.xlim(0, None)
 
-        left, right = xlim()
+        left, right = plt.xlim()
         if right < 550:
-            xlim(left, 550)
+            plt.xlim(left, 550)
 
         nfitname = os.path.join(args.dir, fitbasename + "-N.png")
-        savefig(nfitname)
+        plt.savefig(nfitname)
 
         # also fit tags
 
         def fun(x, A):
             return A * x
 
-        figure()
+        plt.figure()
 
-        errorbar(l, D, yerr=uD, fmt="o")
+        plt.errorbar(l, D, yerr=uD, fmt="o")
 
         mask = ~np.isnan(l)
         if sum(mask) > 2:
             lopt, lcov = opt.curve_fit(fun, l[mask], D[mask], sigma=uD[mask])
             ll = np.linspace(0, max(l[mask]) * 1.1, 100)
-            plot(ll, fun(ll, *lopt))
+            plt.plot(ll, fun(ll, *lopt))
         else:
             lopt, lcov = np.zeros(1), np.atleast_2d(np.ones(1))
 
-        xlabel("l /mV")
-        ylabel("D/ Er")
+        plt.xlabel("l /mV")
+        plt.ylabel("D/ Er")
 
-        grid(True)
+        plt.grid(True)
 
         Dfitname = os.path.join(args.dir, fitbasename + "-Dfit.png")
-        savefig(Dfitname)
+        plt.savefig(Dfitname)
 
         l_par = correlated_values(lopt, lcov)
 
@@ -483,4 +483,4 @@ if __name__ == "__main__":
             Ttxt.write("# D/Er = k*l/mV\n#\n")
             Ttxt.write(Tlogfmt.format(*z_par, *r_par, *l_par))
 
-    show(block=False)  # note i prefer to be ioff for this script
+    plt.show(block=False)  # note i prefer to be ioff for this script
