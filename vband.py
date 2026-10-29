@@ -36,8 +36,6 @@ import scipy.optimize as opt
 from matplotlib import cm
 from uncertainties import correlated_values, ufloat, ufloat_fromstr, unumpy
 
-__version__ = "1.1"
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Process IT-Yb1 sideband data based on a Born-Oppenheimer model",
