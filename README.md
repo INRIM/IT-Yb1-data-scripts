@@ -12,34 +12,16 @@ New development of the sidebands fit has been moved to https://github.com/INRIM/
 
 ## Basic usage
 
-In a Ipython console
+Make the module available using uv directly from github, for example:
 
-`run sproc clock-data-file-to-be-processed` or
+    uvx --with "git+https://github.com/INRIM/IT-Yb1-data-scripts.git" ipython
 
-`run vband sideband-data-file-to-be-processed`
+Run the scripts in iptyhon with:
 
-For more options see
+    run -m sproc -- --help
+    run -m vband -- --help
 
-`run sproc -h` or
-
-`run vband -h`
-
-## Requirements
-
-The scripts require the following python packages:
-- `numpy`, `scipy`, `matplotlib`
-- `uncertainties`
-- `allantools`
-
-`vband.py` requires also:
-- `pygsl`
-
-To instal gsl (under Linux Mint):
-
-`apt-get install libgsl-dev`
-
-`pip3 instal pygsl`
-
+Note the `-m` and the need to escape options with the first `--` 
 
 ## License
 
@@ -47,4 +29,4 @@ To instal gsl (under Linux Mint):
 
 ## Authors
 
-(c) 2021 Marco Pizzocaro - Istituto Nazionale di Ricerca Metrologica (INRIM)
+(c) 2021-2026 Marco Pizzocaro - Istituto Nazionale di Ricerca Metrologica (INRIM)
