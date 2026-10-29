@@ -30,10 +30,10 @@ import sys
 from datetime import datetime
 
 import large_lattice_model as llm
+import numpy as np
 import scipy.optimize as opt
 from matplotlib import cm
 from matplotlib.pyplot import *
-from numpy import *
 from uncertainties import correlated_values, ufloat, ufloat_fromstr, unumpy
 
 __version__ = "1.1"
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
         lim_list = [tuple(map(myint, i.split("-"))) for i in args.num]
         corrected_lim_list = [(x[0], x[0] + 1) if len(x) == 1 else (x[0], x[1] + 1) for x in lim_list]
-        num_list = concatenate([arange(*x) for x in corrected_lim_list])
+        num_list = np.concatenate([np.arange(*x) for x in corrected_lim_list])
         tag_list = [f"{x:03d}" for x in num_list]
 
         for tag in tag_list:
@@ -118,7 +118,7 @@ if __name__ == "__main__":
             if not df:
                 print(f"WARNING: I have not found a file starting with {tag}")
             else:
-                args.infile = df
+                args.infile += df
 
     Nf = len(args.infile)
 
@@ -151,11 +151,11 @@ if __name__ == "__main__":
             if ll:
                 l = ",".join(ll)
             else:
-                l = nan
+                l = np.nan
             if ss:
                 spin = ",".join(ss)
             else:
-                spin = nan
+                spin = np.nan
 
             tag = args.tag[min(i, len(args.tag) - 1)]
 
@@ -167,18 +167,18 @@ if __name__ == "__main__":
             # fitting procedure
             # =================
 
-            data = genfromtxt(fil, usecols=(2, 3, 4, 5, 6, 7), skip_footer=1, skip_header=1)
+            data = np.genfromtxt(fil, usecols=(2, 3, 4, 5, 6, 7), skip_footer=1, skip_header=1)
 
             freq = data[:, 0]
-            freq = around(freq, 4)
-            funique = unique(freq)  # find scan frequency values
+            freq = np.around(freq, 4)
+            funique = np.unique(freq)  # find scan frequency values
 
             # average data
             ave = []
             for f in funique:
-                ave += [mean(data[where(freq == f)], axis=0)]
+                ave += [np.mean(data[np.where(freq == f)], axis=0)]
 
-            ave = array(ave)
+            ave = np.array(ave)
             # freq = funique
 
             # unpack!
@@ -197,8 +197,8 @@ if __name__ == "__main__":
 
             # nowadays sidebands are always pretty centered
             # so, no need to test where the sidebands are
-            fmi = amin(freq)
-            fma = amax(freq)
+            fmi = np.amin(freq)
+            fma = np.amax(freq)
             fce = (fmi + fma) / 2
             fxc = (fma - fmi) / 2
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
             mask = funique < fce + nscale
 
             def findeta(eta, g, e):
-                return std(g + e / eta)
+                return np.std(g + e / eta)
 
             res = opt.minimize(findeta, 0.97, args=(G[mask], E[mask]))
             eta = res.x[
@@ -215,7 +215,7 @@ if __name__ == "__main__":
             ]  # we found abug for wich the first blue pulse gives less signal than the third, so eta can be > 1 !?!
 
             N = G + E / eta
-            baseN = median(N[mask])
+            baseN = np.median(N[mask])
 
             # now use the new data
             # this substantially fit just th excitation
@@ -228,8 +228,8 @@ if __name__ == "__main__":
             cfreq = freq[mask]
             cexc = exc[mask]
 
-            a = amax(cexc) * 2
-            fc = cfreq[argmax(cexc)]
+            a = np.amax(cexc) * 2
+            fc = cfreq[np.argmax(cexc)]
 
             copt, ccov = opt.curve_fit(llm.fit_lorentzian, cfreq, cexc, p0=[a, fc + 100, cscale / 10])
 
@@ -242,7 +242,7 @@ if __name__ == "__main__":
             sexc = exc - llm.fit_lorentzian(freq, *copt)
 
             # guess sbands parameters
-            A = sum(cexc) * median(diff(freq)) / w0
+            A = sum(cexc) * np.median(np.diff(freq)) / w0
             D = fxc**2 / (4 * vrec**2) * args.Dscale
             # D=58.34
             if args.Tz:
@@ -262,7 +262,7 @@ if __name__ == "__main__":
             )
 
             # Plot fit
-            ff = linspace(amin(freq), amax(freq), 400)
+            ff = np.linspace(np.amin(freq), np.amax(freq), 400)
             fit = fit_sbands(ff, *sopt) + llm.fit_lorentzian(ff, *copt)
 
             # single plot
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             c_par = correlated_values(copt, ccov)
             s_par = correlated_values(sopt, scov)
 
-            Natoms = ufloat(mean(data[:, -2]), std(data[:, -2]))
+            Natoms = ufloat(np.mean(data[:, -2]), np.std(data[:, -2]))
 
             print(f"A = {s_par[0]:.2uS}")
             print(f"D = {s_par[1]:.2uS} Er")
@@ -308,179 +308,179 @@ if __name__ == "__main__":
             with open(alltxtname, "a") as alltxt:
                 alltxt.write(logfmt.format(basename, tag, l, spin, *c_par, *s_par, Natoms))
 
-        if Nf > 1:
-            figure("comp")
-            savefig(allfigname)
+    if Nf > 1:
+        figure("comp")
+        savefig(allfigname)
 
-        if Nf > 0:
-            with open(alltxtname, "a") as alltxt:
-                alltxt.write("# Above data generated on: " + str(datetime.now()) + "\n")
-                alltxt.write("# With the command line: " + " ".join(command) + "\n")
-                # alltxt.write("# Script version: " +  __version__ + '\n')
+    if Nf > 0:
+        with open(alltxtname, "a") as alltxt:
+            alltxt.write("# Above data generated on: " + str(datetime.now()) + "\n")
+            alltxt.write("# With the command line: " + " ".join(command) + "\n")
+            # alltxt.write("# Script version: " +  __version__ + '\n')
 
-        if not args.nofit and Nf > 1:
-            # deletechars = set() avoid genfromtxt stripping away my "/" in the column names
-            data = genfromtxt(
-                alltxtname,
-                names=True,
-                dtype=None,
-                converters={i: ufloat_fromstr for i in arange(4, 4 + len(labels))},
-                encoding=None,
-                deletechars=set(),
+    if not args.nofit and Nf > 1:
+        # deletechars = set() avoid genfromtxt stripping away my "/" in the column names
+        data = np.genfromtxt(
+            alltxtname,
+            names=True,
+            dtype=None,
+            converters={i: ufloat_fromstr for i in np.arange(4, 4 + len(labels))},
+            encoding=None,
+            deletechars=set(),
+        )
+
+        D = unumpy.nominal_values(data["D/Er"])
+        uD = unumpy.std_devs(data["D/Er"])
+
+        Tz = unumpy.nominal_values(data["Tz/K"])
+        uTz = unumpy.std_devs(data["Tz/K"])
+
+        Tr = unumpy.nominal_values(data["Tr/K"])
+        uTr = unumpy.std_devs(data["Tr/K"])
+
+        Na = unumpy.nominal_values(data["Nat/mV"])
+        uNa = unumpy.std_devs(data["Nat/mV"])
+
+        l = data["l/mV"].astype(float)
+
+        # quadratic fit
+        def fun(x, a, b):
+            return a * (x * Er) / kB + b * x**2 * Er / kB
+
+        eps = 1e-6
+
+        if not args.Tzlin:
+            zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.001])
+        else:
+            zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.0], bounds=([0, -eps], [10.0, eps]))
+
+        if not args.Trlin:
+            ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.001])
+        else:
+            ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.0], bounds=([0, -eps], [10.0, eps]))
+
+        z_par = correlated_values(zopt, zcov)
+        r_par = correlated_values(ropt, rcov)
+
+        print("Tfit\n")
+        print(f"Az = {z_par[0]:.2uS}")
+        if not args.Tzlin:
+            print(f"Bz = {z_par[1]:.2uS}")
+        print(f"Ar = {r_par[0]:.2uS}")
+        if not args.Trlin:
+            print(f"Br = {r_par[1]:.2uS}")
+
+        figure()
+        scale = 1e6
+
+        for i, x in enumerate(set(data["spin"])):
+            mask = np.where(data["spin"] == x)
+            errorbar(
+                D[mask],
+                Tz[mask] * scale,
+                yerr=uTz[mask] * scale,
+                xerr=uD[mask],
+                fmt="o",
+                color=cm.tab20(1 - i),
+                label=f"Tz, s={x}",
+            )
+            errorbar(
+                D[mask],
+                Tr[mask] * scale,
+                yerr=uTr[mask] * scale,
+                xerr=uD[mask],
+                fmt="d",
+                color=cm.tab20(3 - i),
+                label=f"Tr, s={x}",
             )
 
-            D = unumpy.nominal_values(data["D/Er"])
-            uD = unumpy.std_devs(data["D/Er"])
+        uu = np.linspace(0, max(D) * 1.1, 100)
 
-            Tz = unumpy.nominal_values(data["Tz/K"])
-            uTz = unumpy.std_devs(data["Tz/K"])
+        plot(uu, fun(uu, *zopt) * scale, color=cm.tab20(4))
+        plot(uu, fun(uu, *ropt) * scale, color=cm.tab20(6))
 
-            Tr = unumpy.nominal_values(data["Tr/K"])
-            uTr = unumpy.std_devs(data["Tr/K"])
+        legend(loc=0)
+        xlabel("D/ Er")
+        ylabel("T /µK")
+        grid(True)
 
-            Na = unumpy.nominal_values(data["Nat/mV"])
-            uNa = unumpy.std_devs(data["Nat/mV"])
+        left, right = xlim()
+        if right < 550:
+            xlim(left, 550)
 
-            l = data["l/mV"].astype(float)
+        tfitname = os.path.join(args.dir, fitbasename + "-tfit.png")
+        savefig(tfitname)
 
-            # quadratic fit
-            def fun(x, a, b):
-                return a * (x * Er) / kB + b * x**2 * Er / kB
+        figure()
+        scale = 1
 
-            eps = 1e-6
+        for i, x in enumerate(set(data["spin"])):
+            mask = np.where(data["spin"] == x)
+            errorbar(
+                D[mask],
+                Na[mask] * scale,
+                yerr=uNa[mask] * scale,
+                xerr=uD[mask],
+                color=cm.tab20(1 - i),
+                fmt="o",
+                label=f"Natoms s={x}",
+            )
 
-            if not args.Tzlin:
-                zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.001])
-            else:
-                zopt, zcov = opt.curve_fit(fun, D, Tz, sigma=uTz, p0=[0.2, 0.0], bounds=([0, -eps], [10.0, eps]))
+        legend(loc=0)
+        xlabel("D/ Er")
+        ylabel("Natoms /mV")
+        grid(True)
+        xlim(0, None)
 
-            if not args.Trlin:
-                ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.001])
-            else:
-                ropt, rcov = opt.curve_fit(fun, D, Tr, sigma=uTr, p0=[0.2, 0.0], bounds=([0, -eps], [10.0, eps]))
+        left, right = xlim()
+        if right < 550:
+            xlim(left, 550)
 
-            z_par = correlated_values(zopt, zcov)
-            r_par = correlated_values(ropt, rcov)
+        nfitname = os.path.join(args.dir, fitbasename + "-N.png")
+        savefig(nfitname)
 
-            print("Tfit\n")
-            print(f"Az = {z_par[0]:.2uS}")
-            if not args.Tzlin:
-                print(f"Bz = {z_par[1]:.2uS}")
-            print(f"Ar = {r_par[0]:.2uS}")
-            if not args.Trlin:
-                print(f"Br = {r_par[1]:.2uS}")
+        # also fit tags
 
-            figure()
-            scale = 1e6
+        def fun(x, A):
+            return A * x
 
-            for i, x in enumerate(set(data["spin"])):
-                mask = where(data["spin"] == x)
-                errorbar(
-                    D[mask],
-                    Tz[mask] * scale,
-                    yerr=uTz[mask] * scale,
-                    xerr=uD[mask],
-                    fmt="o",
-                    color=cm.tab20(1 - i),
-                    label=f"Tz, s={x}",
-                )
-                errorbar(
-                    D[mask],
-                    Tr[mask] * scale,
-                    yerr=uTr[mask] * scale,
-                    xerr=uD[mask],
-                    fmt="d",
-                    color=cm.tab20(3 - i),
-                    label=f"Tr, s={x}",
-                )
+        figure()
 
-            uu = linspace(0, max(D) * 1.1, 100)
+        errorbar(l, D, yerr=uD, fmt="o")
 
-            plot(uu, fun(uu, *zopt) * scale, color=cm.tab20(4))
-            plot(uu, fun(uu, *ropt) * scale, color=cm.tab20(6))
+        mask = ~np.isnan(l)
+        if sum(mask) > 2:
+            lopt, lcov = opt.curve_fit(fun, l[mask], D[mask], sigma=uD[mask])
+            ll = np.linspace(0, max(l[mask]) * 1.1, 100)
+            plot(ll, fun(ll, *lopt))
+        else:
+            lopt, lcov = np.zeros(1), np.atleast_2d(np.ones(1))
 
-            legend(loc=0)
-            xlabel("D/ Er")
-            ylabel("T /µK")
-            grid(True)
+        xlabel("l /mV")
+        ylabel("D/ Er")
 
-            left, right = xlim()
-            if right < 550:
-                xlim(left, 550)
+        grid(True)
 
-            tfitname = os.path.join(args.dir, fitbasename + "-tfit.png")
-            savefig(tfitname)
+        Dfitname = os.path.join(args.dir, fitbasename + "-Dfit.png")
+        savefig(Dfitname)
 
-            figure()
-            scale = 1
+        l_par = correlated_values(lopt, lcov)
 
-            for i, x in enumerate(set(data["spin"])):
-                mask = where(data["spin"] == x)
-                errorbar(
-                    D[mask],
-                    Na[mask] * scale,
-                    yerr=uNa[mask] * scale,
-                    xerr=uD[mask],
-                    color=cm.tab20(1 - i),
-                    fmt="o",
-                    label=f"Natoms s={x}",
-                )
+        print("Dfit\n")
+        print(f"k = {l_par[0]:.2uS}")
 
-            legend(loc=0)
-            xlabel("D/ Er")
-            ylabel("Natoms /mV")
-            grid(True)
-            xlim(0, None)
+        Ttxtname = os.path.join(args.dir, fitbasename + "-fit.dat")
 
-            left, right = xlim()
-            if right < 550:
-                xlim(left, 550)
+        with open(Ttxtname, "w") as Ttxt:
+            Tlabels = ["Az", "Bz", "Ar", "Br", "k"]
+            Ttit = "#" + "\t".join(Tlabels) + "\n"
+            Tlogfmt = "\t".join(["{:.2uS}"] * len(Tlabels)) + "\n"
 
-            nfitname = os.path.join(args.dir, fitbasename + "-N.png")
-            savefig(nfitname)
-
-            # also fit tags
-
-            def fun(x, A):
-                return A * x
-
-            figure()
-
-            errorbar(l, D, yerr=uD, fmt="o")
-
-            mask = ~isnan(l)
-            if sum(mask) > 2:
-                lopt, lcov = opt.curve_fit(fun, l[mask], D[mask], sigma=uD[mask])
-                ll = linspace(0, max(l[mask]) * 1.1, 100)
-                plot(ll, fun(ll, *lopt))
-            else:
-                lopt, lcov = zeros(1), atleast_2d(ones(1))
-
-            xlabel("l /mV")
-            ylabel("D/ Er")
-
-            grid(True)
-
-            Dfitname = os.path.join(args.dir, fitbasename + "-Dfit.png")
-            savefig(Dfitname)
-
-            l_par = correlated_values(lopt, lcov)
-
-            print("Dfit\n")
-            print(f"k = {l_par[0]:.2uS}")
-
-            Ttxtname = os.path.join(args.dir, fitbasename + "-fit.dat")
-
-            with open(Ttxtname, "w") as Ttxt:
-                Tlabels = ["Az", "Bz", "Ar", "Br", "k"]
-                Ttit = "#" + "\t".join(Tlabels) + "\n"
-                Tlogfmt = "\t".join(["{:.2uS}"] * len(Tlabels)) + "\n"
-
-                Ttxt.write(Ttit)
-                Ttxt.write("#\n# Temperature fits\n")
-                Ttxt.write("# kB*T/Er = A*(D/Er) + B*(D/Er)**2\n")
-                Ttxt.write("#\n# Depth fit\n")
-                Ttxt.write("# D/Er = k*l/mV\n#\n")
-                Ttxt.write(Tlogfmt.format(*z_par, *r_par, *l_par))
+            Ttxt.write(Ttit)
+            Ttxt.write("#\n# Temperature fits\n")
+            Ttxt.write("# kB*T/Er = A*(D/Er) + B*(D/Er)**2\n")
+            Ttxt.write("#\n# Depth fit\n")
+            Ttxt.write("# D/Er = k*l/mV\n#\n")
+            Ttxt.write(Tlogfmt.format(*z_par, *r_par, *l_par))
 
     show(block=False)  # note i prefer to be ioff for this script
