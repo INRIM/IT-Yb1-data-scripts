@@ -318,7 +318,7 @@ if __name__ == "__main__":
                 alltxt.write("# With the command line: " + " ".join(command) + "\n")
                 # alltxt.write("# Script version: " +  __version__ + '\n')
 
-        if not args.nofit:
+        if not args.nofit and Nf > 1:
             # deletechars = set() avoid genfromtxt stripping away my "/" in the column names
             data = genfromtxt(
                 alltxtname,
