@@ -34,7 +34,6 @@ import scipy.optimize as opt
 from matplotlib import cm
 from matplotlib.pyplot import *
 from numpy import *
-from scipy.constants import c, h, k
 from uncertainties import correlated_values, ufloat, ufloat_fromstr, unumpy
 
 __version__ = "1.1"
@@ -77,24 +76,9 @@ if __name__ == "__main__":
     close("all")
 
 
-m = 2.83846417e-25  # atomic mass
-fL = 394798e9  # lattice frequency
-lL = c / fL  # lattice wavelength
-Er = h**2 / (2 * m * lL**2)  # recoil energy
-vrec = h / (2 * m * lL**2)  # recoil frequency
-w = 45e-6  # lattice waist # note final result does not depend on w
-
-# store boltzmann for later
-kB = k
-
-# problem scale
-k = 2 * pi / lL
-kappa = sqrt(2) / w
-
-# clock k
-wc = 518295836590863.0
-lc = c / wc
-kc = 2 * pi / lc
+Er = llm.settings.Er
+kB = llm.kB
+vrec = Er / llm.h
 
 
 if __name__ == "__main__":
