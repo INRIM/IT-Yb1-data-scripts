@@ -118,7 +118,7 @@ if __name__ == "__main__":
         lim_list = [tuple(map(myint, i.split("-"))) for i in args.num]
         corrected_lim_list = [(x[0], x[0] + 1) if len(x) == 1 else (x[0], x[1] + 1) for x in lim_list]
         num_list = concatenate([arange(*x) for x in corrected_lim_list])
-        tag_list = ["{:03d}".format(x) for x in num_list]
+        tag_list = [f"{x:03d}" for x in num_list]
 
         for tag in tag_list:
             # serach for the tag  file
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
             df = find(tag + "_*.dat", ".")
             if not df:
-                print("WARNING: I have not found a file starting with {}".format(tag))
+                print(f"WARNING: I have not found a file starting with {tag}")
             else:
                 args.infile += [open(f, "r") for f in df]
 
@@ -311,14 +311,14 @@ if __name__ == "__main__":
 
         Natoms = ufloat(mean(data[:, -2]), std(data[:, -2]))
 
-        print("A = {:.2uS}".format(s_par[0]))
-        print("D = {:.2uS} Er".format(s_par[1]))
-        print("vz = {:.2uS} kHz".format(s_par[1] ** 0.5 * vrec * 2 * 1e-3))
-        print("Tz = {:.2uS} K".format(s_par[2]))
-        print("Tr = {:.2uS} K".format(s_par[3]))
-        print("wc = {:.2uS} Hz".format(c_par[2]))
-        print("Nat = {:.2uS} mV".format(Natoms))
-        print("eta = {:.3}".format(eta))
+        print(f"A = {s_par[0]:.2uS}")
+        print(f"D = {s_par[1]:.2uS} Er")
+        print(f"vz = {s_par[1] ** 0.5 * vrec * 2 * 1e-3:.2uS} kHz")
+        print(f"Tz = {s_par[2]:.2uS} K")
+        print(f"Tr = {s_par[3]:.2uS} K")
+        print(f"wc = {c_par[2]:.2uS} Hz")
+        print(f"Nat = {Natoms:.2uS} mV")
+        print(f"eta = {eta:.3}")
         print("\n")
 
         # save data in tabular form on the common file
@@ -380,12 +380,12 @@ if __name__ == "__main__":
         r_par = correlated_values(ropt, rcov)
 
         print("Tfit\n")
-        print("Az = {:.2uS}".format(z_par[0]))
+        print(f"Az = {z_par[0]:.2uS}")
         if not args.Tzlin:
-            print("Bz = {:.2uS}".format(z_par[1]))
-        print("Ar = {:.2uS}".format(r_par[0]))
+            print(f"Bz = {z_par[1]:.2uS}")
+        print(f"Ar = {r_par[0]:.2uS}")
         if not args.Trlin:
-            print("Br = {:.2uS}".format(r_par[1]))
+            print(f"Br = {r_par[1]:.2uS}")
 
         figure()
         scale = 1e6
@@ -399,7 +399,7 @@ if __name__ == "__main__":
                 xerr=uD[mask],
                 fmt="o",
                 color=cm.tab20(1 - i),
-                label="Tz, s={}".format(x),
+                label=f"Tz, s={x}",
             )
             errorbar(
                 D[mask],
@@ -408,7 +408,7 @@ if __name__ == "__main__":
                 xerr=uD[mask],
                 fmt="d",
                 color=cm.tab20(3 - i),
-                label="Tr, s={}".format(x),
+                label=f"Tr, s={x}",
             )
 
         uu = linspace(0, max(D) * 1.1, 100)
@@ -440,7 +440,7 @@ if __name__ == "__main__":
                 xerr=uD[mask],
                 color=cm.tab20(1 - i),
                 fmt="o",
-                label="Natoms s={}".format(x),
+                label=f"Natoms s={x}",
             )
 
         legend(loc=0)
@@ -484,7 +484,7 @@ if __name__ == "__main__":
         l_par = correlated_values(lopt, lcov)
 
         print("Dfit\n")
-        print("k = {:.2uS}".format(l_par[0]))
+        print(f"k = {l_par[0]:.2uS}")
 
         Ttxtname = os.path.join(args.dir, fitbasename + "-fit.dat")
         Ttxt = open(Ttxtname, "w")
